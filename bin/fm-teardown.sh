@@ -527,6 +527,13 @@ if [ "$FORCE" = --force ] && [ "$(fm_lease_actor)" = branch ]; then
 fi
 fm_lease_guard "$ID" "teardown (fm-teardown)"
 
+# A recorded worktree Treehouse could not be asked about may be a pool slot, and
+# returning one unrecognised would skip every slot-ownership check below.
+treehouse_pool_slot_unknown_refusal() {  # <task-label> <worktree> <project>
+  echo "REFUSED: cannot tell whether task $1's recorded worktree ${2:-<missing>} is a Treehouse pool slot: 'treehouse status --json' from ${3:-<missing>} could not be run or read (it needs treehouse and jq on PATH); nothing was changed - not even with --force." >&2
+  echo "Make Treehouse's status readable from that project, then re-run teardown." >&2
+}
+
 META="$STATE/$ID.meta"
 TREEHOUSE_PROJECT_LOCK=
 TREEHOUSE_PROJECT_LOCK_HELD=0
@@ -538,9 +545,16 @@ if [ -f "$META" ] && [ ! -L "$META" ]; then
   [ -n "$TEARDOWN_LOCK_BACKEND" ] || TEARDOWN_LOCK_BACKEND=tmux
   TEARDOWN_LOCK_WT=$(fm_meta_get "$META" worktree)
   TEARDOWN_LOCK_PROJECT=$(fm_meta_get "$META" project)
-  if [ "$TEARDOWN_LOCK_KIND" != secondmate ] \
-     && [ "$TEARDOWN_LOCK_BACKEND" != orca ] \
-     && fm_treehouse_pool_slot "$TEARDOWN_LOCK_PROJECT" "$TEARDOWN_LOCK_WT"; then
+  TEARDOWN_LOCK_POOL_RC=1
+  if [ "$TEARDOWN_LOCK_KIND" != secondmate ] && [ "$TEARDOWN_LOCK_BACKEND" != orca ]; then
+    TEARDOWN_LOCK_POOL_RC=0
+    fm_treehouse_pool_slot "$TEARDOWN_LOCK_PROJECT" "$TEARDOWN_LOCK_WT" || TEARDOWN_LOCK_POOL_RC=$?
+  fi
+  if [ "$TEARDOWN_LOCK_POOL_RC" = 2 ]; then
+    treehouse_pool_slot_unknown_refusal "$ID" "$TEARDOWN_LOCK_WT" "$TEARDOWN_LOCK_PROJECT"
+    exit 1
+  fi
+  if [ "$TEARDOWN_LOCK_POOL_RC" = 0 ]; then
     TREEHOUSE_SLOT_LOCK_REQUIRED=1
     TREEHOUSE_PROJECT_LOCK=$(fm_treehouse_project_lock_path "$TEARDOWN_LOCK_PROJECT") || {
       echo "REFUSED: cannot resolve the shared Treehouse project lock for ${TEARDOWN_LOCK_PROJECT:-<missing>}; nothing was changed" >&2
@@ -1260,8 +1274,21 @@ CLEANUP_RECOVERY=$TEARDOWN_CLEANUP_RECOVERY
 KIND=$TEARDOWN_META_KIND
 TEARDOWN_POOL_SLOT_LOST=0
 EXPECTED_TREEHOUSE_PROJECT_LOCK=
-if [ "$KIND" != secondmate ] && [ "$BACKEND" != orca ] \
-   && fm_treehouse_pool_slot "$PROJ" "$WT"; then
+# The one pool-membership determination for this task's own worktree, taken
+# under the project lock so no spawn or return can change it before the slot
+# steps below; teardown_live_slot_path and the return read it rather than
+# asking Treehouse again.
+TEARDOWN_WT_POOL_SLOT=0
+TEARDOWN_WT_POOL_RC=1
+if [ "$KIND" != secondmate ] && [ "$BACKEND" != orca ]; then
+  TEARDOWN_WT_POOL_RC=0
+  fm_treehouse_pool_slot "$PROJ" "$WT" || TEARDOWN_WT_POOL_RC=$?
+fi
+if [ "$TEARDOWN_WT_POOL_RC" = 2 ]; then
+  treehouse_pool_slot_unknown_refusal "$ID" "$WT" "$PROJ"
+  exit 1
+elif [ "$TEARDOWN_WT_POOL_RC" = 0 ]; then
+  TEARDOWN_WT_POOL_SLOT=1
   EXPECTED_TREEHOUSE_PROJECT_LOCK=$(fm_treehouse_project_lock_path "$PROJ") || {
     echo "REFUSED: cannot resolve the shared Treehouse project lock for ${PROJ:-<missing>}; nothing was changed" >&2
     exit 1
@@ -2504,7 +2531,7 @@ require_orca_worktree_path_match_if_present() {
 # record with nothing live to return skips them rather than refusing.
 teardown_live_slot_path() {
   [ "$KIND" != secondmate ] || return 1
-  fm_treehouse_pool_slot "$PROJ" "$WT" || return 1
+  [ "$TEARDOWN_WT_POOL_SLOT" = 1 ] || return 1
   canonical_existing_dir "$WT"
 }
 
@@ -3100,7 +3127,7 @@ preflight_descendant_task_locks() {
 }
 
 preflight_descendant_treehouse_slots() {
-  local i state task_id meta kind backend target worktree project lock_path held owner_rc
+  local i state task_id meta kind backend target worktree project lock_path held owner_rc pool_rc
   for ((i=0; i < ${#DESCENDANT_TASK_IDS[@]}; i++)); do
     state=${DESCENDANT_TASK_STATES[$i]}
     task_id=${DESCENDANT_TASK_IDS[$i]}
@@ -3113,9 +3140,13 @@ preflight_descendant_treehouse_slots() {
     if [ "$kind" = secondmate ] || [ "$backend" = orca ]; then
       continue
     fi
-    if ! fm_treehouse_pool_slot "$project" "$worktree"; then
-      continue
+    pool_rc=0
+    fm_treehouse_pool_slot "$project" "$worktree" || pool_rc=$?
+    if [ "$pool_rc" = 2 ]; then
+      treehouse_pool_slot_unknown_refusal "child $task_id" "$worktree" "$project"
+      return 1
     fi
+    [ "$pool_rc" = 0 ] || continue
     lock_path=$(fm_treehouse_project_lock_path "$project") || {
       echo "REFUSED: cannot resolve the shared Treehouse project lock for child $task_id; forced teardown changed nothing" >&2
       return 1
@@ -3146,9 +3177,13 @@ preflight_descendant_treehouse_slots() {
     if [ "$kind" = secondmate ] || [ "$backend" = orca ]; then
       continue
     fi
-    if ! fm_treehouse_pool_slot "$project" "$worktree"; then
-      continue
+    pool_rc=0
+    fm_treehouse_pool_slot "$project" "$worktree" || pool_rc=$?
+    if [ "$pool_rc" = 2 ]; then
+      treehouse_pool_slot_unknown_refusal "child $task_id" "$worktree" "$project"
+      return 1
     fi
+    [ "$pool_rc" = 0 ] || continue
     fm_backend_validate_task_endpoint "$meta" "$task_id" || return 1
     require_exclusive_worktree_slot_record "$meta" "$task_id" "$state" "$worktree" || return 1
     owner_rc=0
@@ -3370,7 +3405,7 @@ endpoint_close_refusal() {  # <subject> <backend> <target> <honors-force>
 }
 
 cleanup_firstmate_home_children() {
-  local home=$1 archive_parent=${2:-$ID} sub_state child_meta child_id child_t child_wt child_proj child_kind child_home child_backend child_orca_worktree_id child_return_rc child_busy_gen child_owner_rc child_pool_slot
+  local home=$1 archive_parent=${2:-$ID} sub_state child_meta child_id child_t child_wt child_proj child_kind child_home child_backend child_orca_worktree_id child_return_rc child_busy_gen child_owner_rc child_pool_rc
   sub_state="$home/state"
   [ -d "$sub_state" ] || return 0
   for child_meta in "$sub_state"/*.meta; do
@@ -3434,7 +3469,13 @@ cleanup_firstmate_home_children() {
       # or return, so only its records are cleaned up. The preflight above
       # already named the reassignment on stderr under the same lock.
       child_owner_rc=0
-      if fm_treehouse_pool_slot "$child_proj" "$child_wt"; then
+      child_pool_rc=0
+      fm_treehouse_pool_slot "$child_proj" "$child_wt" || child_pool_rc=$?
+      if [ "$child_pool_rc" = 2 ]; then
+        treehouse_pool_slot_unknown_refusal "child $child_id" "$child_wt" "$child_proj"
+        return 1
+      fi
+      if [ "$child_pool_rc" = 0 ]; then
         require_owned_worktree_slot_record "$child_id" "$child_wt" 2>/dev/null || child_owner_rc=$?
       fi
       if [ "$child_owner_rc" -eq "$TEARDOWN_SLOT_REASSIGNED_RC" ]; then
@@ -3448,10 +3489,8 @@ cleanup_firstmate_home_children() {
           "$child_wt/.fm-grok-turnend" "$child_wt/.fm-kimi-turnend"
         if [ -n "$child_proj" ] && [ -d "$child_proj" ] && command -v treehouse >/dev/null 2>&1; then
           teardown_scrub_scratch_copy "$child_wt" || return 1
-          child_pool_slot=0
-          fm_treehouse_pool_slot "$child_proj" "$child_wt" && child_pool_slot=1
           if teardown_treehouse_return "$child_wt" "$child_proj" "child worktree"; then
-            [ "$child_pool_slot" = 0 ] || teardown_note_dirty_return "$child_wt"
+            [ "$child_pool_rc" != 0 ] || teardown_note_dirty_return "$child_wt"
             fm_treehouse_slot_owner_release "$child_wt" "$child_id"
           else
             child_return_rc=$?
@@ -3797,13 +3836,11 @@ elif [ -d "$WT" ] && [ "$KIND" != secondmate ]; then
   if [ "$KIND" = scout ] || [ "$FORCE" = "--force" ]; then
     teardown_scrub_scratch_copy "$WT" || exit 1
   fi
-  wt_pool_slot=0
-  fm_treehouse_pool_slot "$PROJ" "$WT" && wt_pool_slot=1
   teardown_treehouse_return "$WT" "$PROJ" "worktree" "$post_lock_cleanup_check" || {
     echo "error: treehouse return failed for worktree $WT; teardown aborted" >&2
     exit 1
   }
-  [ "$wt_pool_slot" = 0 ] || teardown_note_dirty_return "$WT"
+  [ "$TEARDOWN_WT_POOL_SLOT" = 0 ] || teardown_note_dirty_return "$WT"
   # The slot is back in the pool, so this task's claim on it is spent. Dropping
   # it here - and only after a return that succeeded - keeps a returned slot
   # unclaimed until its next holder claims it, and leaves the claim in place

@@ -676,17 +676,31 @@ test_stale_pin_beside_other_dirt_reports_one_verdict() {
   pass "a stale pin beside other dirt yields the conservative refusal alone, with no stale-pin line"
 }
 
-# Re-lay a case's pooled worktree as a managed Treehouse slot: <pool>/<slot>/<repo>
-# with the pool's state file beside the slot, which is the shape fm-spawn claims
-# for its task. Rewrites POOL_DIR to the relocated checkout.
+# Re-lay a case's pooled worktree as a managed Treehouse slot: <pool>/<slot>/<repo>,
+# listed by the fake treehouse's status as its pool's slot, which is what
+# fm-spawn claims for its task. Rewrites POOL_DIR to the relocated checkout.
 lay_out_as_pool_slot() {
   local slot_root="$CASE_DIR/slots"
   mkdir -p "$slot_root/1"
   git -C "$PROJECT_DIR" worktree move "$POOL_DIR" "$slot_root/1/project"
-  printf '{"worktrees":[{"name":"1","path":"%s"}]}\n' "$slot_root/1/project" \
-    > "$slot_root/treehouse-state.json"
+  fm_fake_treehouse_pool "$FAKEBIN_DIR" "$slot_root/1/project"
   POOL_DIR="$slot_root/1/project"
-  SLOT_CLAIM="$slot_root/1/.fm-slot-owner"
+  SLOT_CLAIM="$slot_root/1/.fm-slot-owner-project"
+}
+
+# The same slot under a templated worktree_path, "<root>/{repo}-{slot}":
+# in this layout, every slot shares one parent and Treehouse keeps the pool
+# state elsewhere, so only Treehouse's own listing says this is a slot. A
+# sibling slot is listed too, so its claim shows the two never share a file.
+lay_out_as_templated_pool_slot() {
+  local slot_root="$CASE_DIR/slots"
+  mkdir -p "$slot_root"
+  git -C "$PROJECT_DIR" worktree move "$POOL_DIR" "$slot_root/project-1"
+  git -C "$PROJECT_DIR" worktree add --quiet --detach "$slot_root/project-2" "$INITIAL_SHA"
+  fm_fake_treehouse_pool "$FAKEBIN_DIR" "$slot_root/project-1" "$slot_root/project-2"
+  POOL_DIR="$slot_root/project-1"
+  SLOT_CLAIM="$slot_root/.fm-slot-owner-project-1"
+  SIBLING_SLOT_CLAIM="$slot_root/.fm-slot-owner-project-2"
 }
 
 # The spawn side of the slot-owner claim that bin/fm-teardown.sh later reads:
@@ -745,6 +759,44 @@ test_pool_slot_claim_follows_the_spawn_outcome() {
   [ ! -e "$SLOT_CLAIM" ] && [ ! -L "$SLOT_CLAIM" ] \
     || fail "the aborted spawn left a slot claim naming a task with no record: $(cat "$SLOT_CLAIM")"
   pass "a Treehouse slot claim names the launched task, refuses when unclaimable, and is dropped by a locked abort"
+}
+
+# A templated layout: the spawn recognises its slot from Treehouse's own
+# listing and claims it under a name no other slot shares, and a slot
+# Treehouse cannot be asked about refuses before anything is published.
+test_templated_pool_slot_is_claimed_per_slot() {
+  local rec id out status
+
+  id='pool-templated-claim-r1'
+  rec=$(make_case templated-claim "$id")
+  read_case_record "$rec"
+  lay_out_as_templated_pool_slot
+  printf 'task=sibling-task\nhome=%s\n' "$HOME_DIR" > "$SIBLING_SLOT_CLAIM"
+  out=$(run_spawn "$id" --scout)
+  status=$?
+  expect_code 0 "$status" "spawn from a templated Treehouse slot should launch"$'\n'"$out"
+  assert_grep "worktree=$POOL_DIR" "$HOME_DIR/state/$id.meta" \
+    "spawn did not publish the templated slot as its worktree"
+  [ -f "$SLOT_CLAIM" ] || fail "spawn left its templated Treehouse slot unclaimed: $out"
+  grep -Fxq -- "task=$id" "$SLOT_CLAIM" \
+    || fail "the templated slot claim does not name the spawned task: $(cat "$SLOT_CLAIM")"
+  grep -Fxq -- "task=sibling-task" "$SIBLING_SLOT_CLAIM" \
+    || fail "claiming one templated slot rewrote its sibling's claim: $(cat "$SIBLING_SLOT_CLAIM")"
+  assert_absent "$CASE_DIR/slots/.fm-slot-owner" "spawn wrote a claim every templated slot would share"
+
+  id='pool-templated-unreadable-r1'
+  rec=$(make_case templated-unreadable "$id")
+  read_case_record "$rec"
+  lay_out_as_templated_pool_slot
+  printf 'not json\n' > "$FAKEBIN_DIR/.treehouse-pool-status.json"
+  out=$(run_spawn "$id" --scout)
+  status=$?
+  [ "$status" -ne 0 ] || fail "spawn launched into a copy Treehouse could not say was a pool slot"
+  assert_contains "$out" "cannot tell whether $POOL_DIR is a Treehouse pool slot" \
+    "spawn did not name the unreadable Treehouse status as the reason"
+  [ ! -e "$HOME_DIR/state/$id.meta" ] || fail "spawn published a record for an unverifiable slot"
+  assert_absent "$SLOT_CLAIM" "spawn claimed a slot Treehouse could not confirm"
+  pass "a templated Treehouse slot is claimed under its own name, and an unreadable pool refuses"
 }
 
 # A stateful terminal and pool stand-in for the refused-launch sequence. Each
@@ -842,10 +894,9 @@ test_refused_launch_leaves_the_pool_for_a_retry_and_a_second_task() {
   mkdir -p "$slot_root/1" "$slot_root/2"
   git -C "$PROJECT_DIR" worktree move "$POOL_DIR" "$slot_root/1/project"
   git -C "$PROJECT_DIR" worktree add --quiet --detach "$slot_root/2/project" "$INITIAL_SHA"
-  printf '{"worktrees":[{"name":"1","path":"%s"},{"name":"2","path":"%s"}]}\n' \
-    "$slot_root/1/project" "$slot_root/2/project" > "$slot_root/treehouse-state.json"
-  claim1="$slot_root/1/.fm-slot-owner"
-  claim2="$slot_root/2/.fm-slot-owner"
+  fm_fake_treehouse_pool "$FAKEBIN_DIR" "$slot_root/1/project" "$slot_root/2/project"
+  claim1="$slot_root/1/.fm-slot-owner-project"
+  claim2="$slot_root/2/.fm-slot-owner-project"
   world="$CASE_DIR/tmux-world"
   install_pool_world_tmux "$FAKEBIN_DIR" "$world" "$slot_root"
   cat > "$FAKEBIN_DIR/polytoken" <<'SH'
@@ -903,8 +954,7 @@ test_refused_launch_spares_per_id_paths_under_a_contended_spawn_lock() {
   slot_root="$CASE_DIR/slots"
   mkdir -p "$slot_root/1"
   git -C "$PROJECT_DIR" worktree move "$POOL_DIR" "$slot_root/1/project"
-  printf '{"worktrees":[{"name":"1","path":"%s"}]}\n' "$slot_root/1/project" \
-    > "$slot_root/treehouse-state.json"
+  fm_fake_treehouse_pool "$FAKEBIN_DIR" "$slot_root/1/project"
   world="$CASE_DIR/tmux-world"
   install_pool_world_tmux "$FAKEBIN_DIR" "$world" "$slot_root"
   mv "$FAKEBIN_DIR/tmux" "$FAKEBIN_DIR/tmux.world"
@@ -940,7 +990,7 @@ SH
     "the abort did not report skipping its per-id cleanup"$'\n'"$out"
   [ -d "/tmp/fm-$id" ] || fail "the abort removed the task temp root while another spawn held the per-id lock"
   [ ! -e "$world/fm-$id.id" ] || fail "the contended abort left its window open"
-  [ ! -e "$slot_root/1/.fm-slot-owner" ] || fail "the contended abort left its slot claim behind"
+  [ ! -e "$slot_root/1/.fm-slot-owner-project" ] || fail "the contended abort left its slot claim behind"
   rm -rf "/tmp/fm-$id"
   pass "a refused polytoken launch leaves its per-id paths alone while another spawn holds the per-id lock"
 }
@@ -956,8 +1006,7 @@ test_non_polytoken_refused_launch_keeps_its_window() {
   slot_root="$CASE_DIR/slots"
   mkdir -p "$slot_root/1"
   git -C "$PROJECT_DIR" worktree move "$POOL_DIR" "$slot_root/1/project"
-  printf '{"worktrees":[{"name":"1","path":"%s"}]}\n' "$slot_root/1/project" \
-    > "$slot_root/treehouse-state.json"
+  fm_fake_treehouse_pool "$FAKEBIN_DIR" "$slot_root/1/project"
   git -C "$slot_root/1/project" config remote.origin.fetch '+refs/heads/*:refs/remotes/origin/*'
   world="$CASE_DIR/tmux-world"
   install_pool_world_tmux "$FAKEBIN_DIR" "$world" "$slot_root"
@@ -968,7 +1017,7 @@ test_non_polytoken_refused_launch_keeps_its_window() {
   assert_contains "$out" "could not fetch origin" "the codex refusal message changed"$'\n'"$out"
   [ ! -e "$HOME_DIR/state/$id.meta" ] || fail "the refused codex launch published a task record"
   [ -e "$world/fm-$id.id" ] || fail "a non-polytoken refusal closed its window, unlike main"
-  [ ! -e "$slot_root/1/.fm-slot-owner" ] || fail "the refused codex launch left its slot claim"
+  [ ! -e "$slot_root/1/.fm-slot-owner-project" ] || fail "the refused codex launch left its slot claim"
   pass "a non-polytoken launch refused after its slot claim keeps main's abort behavior"
 }
 
@@ -1176,6 +1225,7 @@ test_scout_base_branch_refused_on_gerrit_forge() {
 
 test_remote_seeded_home_spawns_from_treehouse_pool
 test_pool_slot_claim_follows_the_spawn_outcome
+test_templated_pool_slot_is_claimed_per_slot
 test_refused_launch_leaves_the_pool_for_a_retry_and_a_second_task
 test_refused_launch_spares_per_id_paths_under_a_contended_spawn_lock
 test_non_polytoken_refused_launch_keeps_its_window

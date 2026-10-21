@@ -5190,7 +5190,15 @@ elif [ "$KIND" != secondmate ] && [ "$BACKEND" != orca ]; then
   # under its successor.
   # Written under the Treehouse project lock held from before slot allocation
   # through metadata publication, so no other spawn or return sees a half-claim.
-  if fm_treehouse_pool_slot "$PROJ_ABS" "$WT"; then
+  # A copy Treehouse cannot be asked about is refused too: launching into an
+  # unclaimed slot would leave teardown nothing to prove reassignment with.
+  spawn_pool_rc=0
+  fm_treehouse_pool_slot "$PROJ_ABS" "$WT" || spawn_pool_rc=$?
+  if [ "$spawn_pool_rc" = 2 ]; then
+    echo "error: cannot tell whether $WT is a Treehouse pool slot to claim for task $ID: 'treehouse status --json' from $PROJ_ABS could not be run or read (it needs treehouse and jq on PATH); refusing to launch a worker whose slot could not later be proved to be its own; $(spawn_endpoint_hint)" >&2
+    exit 1
+  fi
+  if [ "$spawn_pool_rc" = 0 ]; then
     if ! fm_treehouse_slot_owner_claim "$WT" "$ID" "$FM_HOME"; then
       echo "error: could not claim Treehouse pool slot $WT for task $ID; refusing to launch a worker whose slot cannot later be proved to be its own; $(spawn_endpoint_hint)" >&2
       exit 1

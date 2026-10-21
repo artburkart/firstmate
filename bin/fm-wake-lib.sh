@@ -1569,21 +1569,45 @@ fm_treehouse_project_lock_path() {  # <project-dir>
   printf '%s/.treehouse-project-%s.lock\n' "$root/state" "$hash"
 }
 
-# A Treehouse slot has the managed pool's fixed <pool>/<slot>/<repo> layout.
-# Require both its pool state and the same Git common directory as the recorded
-# project; an ordinary linked worktree is not evidence that Treehouse owns it.
+# A Treehouse pool slot is a path Treehouse itself lists for the project's
+# pool: `treehouse status --json`, run from the project, names the path of
+# every slot. Asking Treehouse rather than reading the path shape recognises a
+# templated worktree_path (such as "/srv/slots/{repo}-{slot}", whose
+# pool state lives under ~/.treehouse rather than beside the slots) exactly
+# like the default <pool>/<slot>/<repo> layout. The slot must also share the
+# recorded project's Git common directory; an ordinary linked worktree is not
+# evidence that Treehouse owns it.
+#
+# Returns 0 for a pool slot and 1 for a path that is provably not one: a
+# missing directory, another repository, or a listing that does not name it,
+# including an empty answer from a status that succeeded. Returns 2 when
+# Treehouse cannot be asked or its answer cannot be read - treehouse or jq is
+# not on PATH, the status fails, or it prints something other than a JSON
+# array. A caller about to claim or return a slot must refuse on 2 rather than
+# treat the path as an ordinary worktree: an unrecognised slot skips every
+# ownership check, while `treehouse return --force` still kills whatever runs
+# in it and resets its copy.
 fm_treehouse_pool_slot() {  # <project-dir> <worktree>
-  local project=$1 worktree=$2 slot pool state project_common slot_common
+  local project=$1 worktree=$2 slot project_common slot_common out listed listed_real
   [ -d "$project" ] && [ -d "$worktree" ] || return 1
   slot=$(CDPATH='' cd -- "$worktree" 2>/dev/null && pwd -P) || return 1
-  pool=$(dirname "$(dirname "$slot")")
-  state="$pool/treehouse-state.json"
-  [ -f "$state" ] && [ ! -L "$state" ] || return 1
   project_common=$(git -C "$project" rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || return 1
   slot_common=$(git -C "$slot" rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || return 1
   project_common=$(CDPATH='' cd -- "$project_common" 2>/dev/null && pwd -P) || return 1
   slot_common=$(CDPATH='' cd -- "$slot_common" 2>/dev/null && pwd -P) || return 1
-  [ "$project_common" = "$slot_common" ]
+  [ "$project_common" = "$slot_common" ] || return 1
+  command -v treehouse >/dev/null 2>&1 && command -v jq >/dev/null 2>&1 || return 2
+  out=$(CDPATH='' cd -- "$project" 2>/dev/null && treehouse status --json 2>/dev/null) || return 2
+  [ -n "$out" ] || return 1
+  printf '%s' "$out" | jq -e 'type == "array"' >/dev/null 2>&1 || return 2
+  # NUL-separated, so no path byte can split or join an entry.
+  while IFS= read -r -d '' listed; do
+    case "$listed" in /*) ;; *) continue ;; esac
+    [ "$listed" != "$slot" ] || return 0
+    listed_real=$(CDPATH='' cd -- "$listed" 2>/dev/null && pwd -P) || continue
+    [ "$listed_real" != "$slot" ] || return 0
+  done < <(printf '%s' "$out" | jq -j '.[] | objects | .path | strings | ., "\u0000"' 2>/dev/null)
+  return 1
 }
 
 # Slot-owner claim: which task a Treehouse pool slot currently belongs to.
@@ -1604,14 +1628,19 @@ fm_treehouse_pool_slot() {  # <project-dir> <worktree>
 # released by bin/fm-teardown.sh when the slot goes back to the pool. Moving
 # crewmate spawns onto the durable lease is separate follow-up work.
 #
-# The claim lives at <pool>/<slot>/.fm-slot-owner - a sibling of the repo
-# checkout rather than a file inside it - so claiming a slot can never dirty the
-# copy teardown's landed-work checks inspect, and a returned slot carries no
-# untracked leftover from it.
+# The claim lives beside the slot's checkout as .fm-slot-owner-<checkout name>
+# - a sibling rather than a file inside it - so claiming a slot can never dirty
+# the copy teardown's landed-work checks inspect, and a returned slot carries no
+# untracked leftover from it. The name carries the checkout's own directory name
+# because the parent is not always the slot's alone: the default layout gives
+# each slot its own <pool>/<slot>/ directory, but a templated worktree_path such
+# as "/srv/slots/{repo}-{slot}" puts every slot of every repository under
+# one parent, where a single fixed name would be one claim they all overwrite.
 fm_treehouse_slot_owner_marker() {  # <worktree>
   local worktree=$1 slot
   slot=$(CDPATH='' cd -- "$worktree" 2>/dev/null && pwd -P) || return 1
-  printf '%s/.fm-slot-owner\n' "$(dirname "$slot")"
+  [ "$slot" != / ] || return 1
+  printf '%s/.fm-slot-owner-%s\n' "$(dirname "$slot")" "$(basename "$slot")"
 }
 
 # Claim a pool slot for a task, replacing whatever the previous holder left.
@@ -1626,7 +1655,9 @@ fm_treehouse_slot_owner_claim() {  # <worktree> <task-id> <home>
      && { [ ! -f "$marker" ] || [ -L "$marker" ]; }; then
     return 1
   fi
-  tmp="$marker.tmp.${BASHPID:-$$}"
+  # The temporary name sits outside the .fm-slot-owner-* namespace, so it can
+  # never be another slot's claim in a parent that slots share.
+  tmp="${marker%/*}/.fm-slot-owner.tmp.${BASHPID:-$$}.${marker##*/.fm-slot-owner-}"
   rm -f "$tmp" || return 1
   {
     printf 'task=%s\n' "$id"

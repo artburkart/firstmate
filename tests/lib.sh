@@ -502,6 +502,37 @@ SH
   done
 }
 
+# fm_fake_treehouse_pool <fakebin> <slot-path>...
+# Makes <fakebin>'s treehouse report exactly the given paths, numbered from 1,
+# as its pool's slots from `treehouse status --json`, which is where Firstmate
+# reads pool membership. The case's own fake (an exit-0 stub when there is none
+# yet) keeps answering every other call; status queries never reach it, so
+# they never show up in its call log. Call it again to change the listing, and
+# after any later rewrite of <fakebin>/treehouse.
+fm_fake_treehouse_pool() {
+  local fakebin=$1
+  shift
+  if [ ! -x "$fakebin/.treehouse-pool-inner" ] || ! grep -q 'treehouse-pool-status.json' "$fakebin/treehouse" 2>/dev/null; then
+    if [ -e "$fakebin/treehouse" ]; then
+      mv -f "$fakebin/treehouse" "$fakebin/.treehouse-pool-inner"
+    else
+      printf '#!/usr/bin/env bash\nexit 0\n' > "$fakebin/.treehouse-pool-inner"
+      chmod +x "$fakebin/.treehouse-pool-inner"
+    fi
+    cat > "$fakebin/treehouse" <<'SH'
+#!/usr/bin/env bash
+if [ "${1:-}" = status ]; then
+  cat "${0%/*}/.treehouse-pool-status.json"
+  exit 0
+fi
+exec "${0%/*}/.treehouse-pool-inner" "$@"
+SH
+    chmod +x "$fakebin/treehouse"
+  fi
+  jq -cn '$ARGS.positional | to_entries | map({name: (.key + 1 | tostring), path: .value, status: "in-use"})' \
+    --args "$@" > "$fakebin/.treehouse-pool-status.json"
+}
+
 # fm_fake_crash_injector <fakebin>
 # Drops an `fm-crash-inject <pid>` shim that a PATH fake calls to simulate a
 # hard crash of the process under test. It SIGKILLs <pid> and then returns only

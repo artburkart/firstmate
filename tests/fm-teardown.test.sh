@@ -678,7 +678,7 @@ backlog_row_state() {
 make_path_without_lsof() {  # <case-dir>
   local case_dir=$1 path_dir="$1/path-without-lsof" cmd resolved
   mkdir -p "$path_dir"
-  for cmd in awk bash basename cat chmod cp cut date dirname env find git grep head hostname id ln \
+  for cmd in awk bash basename cat chmod cp cut date dirname env find git grep head hostname id jq ln \
     mkdir mktemp mv perl ps readlink realpath rm sed sh sleep sort stat tail timeout tr uname wc xargs; do
     resolved=$(command -v "$cmd" 2>/dev/null) || continue
     case "$resolved" in /*) ln -sf "$resolved" "$path_dir/$cmd" ;; esac
@@ -1273,6 +1273,7 @@ test_content_in_default_fallback_allows() {
   land_on_origin_main "$case_dir" feature.txt hello
   cat > "$case_dir/fakebin/treehouse" <<'SH'
 #!/usr/bin/env bash
+[ "${1:-}" != status ] || exit 0
 printf '%s\n' "$*" > "${FM_TEST_TREEHOUSE_LOG:?}"
 exit 0
 SH
@@ -1520,14 +1521,14 @@ seed_nested_clone_and_scratch() {
   printf 'scratch\n' > "$wt/scratch.txt"
 }
 
-# Move the case worktree to pool/<slot>/repo so teardown sees a Treehouse slot.
+# Move the case worktree to pool/<slot>/repo; the case then lists it with
+# fm_fake_treehouse_pool, after installing its own fake treehouse, so teardown
+# sees a Treehouse slot.
 move_case_to_pool_slot() {
   local case_dir=$1 slot=$2 dest
   dest="$case_dir/pool/$slot/repo"
   mkdir -p "$case_dir/pool/$slot"
   git -C "$case_dir/project" worktree move "$case_dir/wt" "$dest"
-  printf '{"worktrees":[{"name":"%s","path":"%s"}]}\n' "$slot" "$dest" \
-    > "$case_dir/pool/treehouse-state.json"
   printf '%s\n' "$dest"
 }
 
@@ -1564,6 +1565,7 @@ test_ship_nested_clone_is_refused_and_bytes_stay() {
   : > "$case_dir/treehouse.log"
   cat > "$case_dir/fakebin/treehouse" <<EOF
 #!/usr/bin/env bash
+[ "\${1:-}" != status ] || exit 0
 printf '%s\n' "\$*" >> "$case_dir/treehouse.log"
 exit 0
 EOF
@@ -1595,6 +1597,7 @@ test_dirty_return_warns_which_slot_was_lost() {
   write_meta "$case_dir" no-mistakes scout "$wt"
   prepare_scout_teardown "$case_dir"
   add_treehouse_that_leaves_residue "$case_dir"
+  fm_fake_treehouse_pool "$case_dir/fakebin" "$wt"
 
   set +e
   FM_HOME="$case_dir" run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr"
@@ -1620,6 +1623,7 @@ test_dirty_return_warns_even_when_a_later_step_refuses() {
   write_meta "$case_dir" no-mistakes scout "$wt"
   prepare_scout_teardown "$case_dir"
   add_treehouse_that_leaves_residue "$case_dir"
+  fm_fake_treehouse_pool "$case_dir/fakebin" "$wt"
   cat > "$case_dir/fakebin/tmux" <<'SH'
 #!/usr/bin/env bash
 case "${1:-}" in
@@ -1706,8 +1710,6 @@ test_forced_secondmate_dirty_child_return_warns_and_completes() {
   child_wt="$case_dir/pool/6/repo"
   mkdir -p "$case_dir/pool/6"
   git -C "$case_dir/project" worktree add -q -b fm/child-scout "$child_wt" main
-  printf '{"worktrees":[{"name":"6","path":"%s"}]}\n' "$child_wt" \
-    > "$case_dir/pool/treehouse-state.json"
   fm_write_meta "$home/state/child-scout.meta" \
     "window=firstmate:fm-child-scout" \
     "endpoint_task_id=child-scout" \
@@ -1716,6 +1718,7 @@ test_forced_secondmate_dirty_child_return_warns_and_completes() {
     "kind=scout" \
     "mode=local-only"
   add_treehouse_that_leaves_residue "$case_dir"
+  fm_fake_treehouse_pool "$case_dir/fakebin" "$child_wt"
 
   rc=0
   run_teardown "$case_dir" --force > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
@@ -1737,6 +1740,7 @@ test_return_that_removes_copy_warns_cannot_verify() {
   write_meta "$case_dir" no-mistakes scout "$wt"
   prepare_scout_teardown "$case_dir"
   add_treehouse_that_removes_copy "$case_dir"
+  fm_fake_treehouse_pool "$case_dir/fakebin" "$wt"
 
   rc=0
   FM_HOME="$case_dir" run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
@@ -3043,6 +3047,7 @@ test_herdr_flat_teardown_refuses_orphaning_records_then_retry_completes() {
   thlog="$case_dir/treehouse.log"; : > "$thlog"
   cat > "$case_dir/fakebin/treehouse" <<SH
 #!/usr/bin/env bash
+[ "\${1:-}" != status ] || exit 0
 printf '%s\n' "\$*" >> "$thlog"
 exit 0
 SH
@@ -3139,6 +3144,7 @@ assert_herdr_teardown_preflight_refuses_before_changes() {
   thlog="$case_dir/treehouse.log"; : > "$thlog"
   cat > "$case_dir/fakebin/treehouse" <<SH
 #!/usr/bin/env bash
+[ "\${1:-}" != status ] || exit 0
 printf '%s\n' "\$*" >> "$thlog"
 exit 0
 SH
@@ -3393,6 +3399,7 @@ test_forced_secondmate_herdr_child_preflight_refuses_before_changes() {
   : > "$log"; : > "$thlog"
   cat > "$case_dir/fakebin/treehouse" <<SH
 #!/usr/bin/env bash
+[ "\${1:-}" != status ] || exit 0
 printf '%s\n' "\$*" >> "$thlog"
 exit 0
 SH
@@ -3447,6 +3454,7 @@ exit 0
 SH
   cat > "$case_dir/fakebin/treehouse" <<SH
 #!/usr/bin/env bash
+[ "\${1:-}" != status ] || exit 0
 printf '%s\n' "\$*" >> "$case_dir/treehouse.log"
 exit 0
 SH
@@ -4670,6 +4678,7 @@ test_parked_own_run_refuses_when_abort_is_unconfirmed() {
 
   cat > "$case_dir/fakebin/treehouse" <<EOF
 #!/usr/bin/env bash
+[ "\${1:-}" != status ] || exit 0
 printf 'return\n' >> "$case_dir/treehouse.log"
 EOF
   chmod +x "$case_dir/fakebin/treehouse"
@@ -4840,6 +4849,7 @@ exit 1
 SH
   cat > "$case_dir/fakebin/treehouse" <<EOF
 #!/usr/bin/env bash
+[ "\${1:-}" != status ] || exit 0
 printf 'return\n' >> "$case_dir/treehouse.log"
 EOF
   chmod +x "$case_dir/fakebin/lsof" "$case_dir/fakebin/treehouse"
@@ -5066,6 +5076,7 @@ exec "$REAL_PS_FOR_TEST" "$@"
 SH
   cat > "$case_dir/fakebin/treehouse" <<EOF
 #!/usr/bin/env bash
+[ "\${1:-}" != status ] || exit 0
 printf 'returned\n' > "$case_dir/treehouse.log"
 EOF
   chmod +x "$case_dir/fakebin/lsof" "$case_dir/fakebin/ps" "$case_dir/fakebin/treehouse"
@@ -5102,6 +5113,7 @@ test_run_abort_precedes_process_reap_precedes_worktree_removal() {
   # real observed state, not a source-text or line-number correlation.
   cat > "$case_dir/fakebin/treehouse" <<EOF
 #!/usr/bin/env bash
+[ "\${1:-}" != status ] || exit 0
 if [ -s "$abort_log" ]; then echo "abort-already-happened" >> "$case_dir/order.log"; fi
 if ! kill -0 $pid 2>/dev/null; then echo "reap-already-happened" >> "$case_dir/order.log"; fi
 exit 0
@@ -5144,6 +5156,7 @@ prepare_teardown_source_copy() {  # <case-dir>
   printf 'manual\n' > "$case_dir/config/backlog-backend"
   cat > "$case_dir/fakebin/treehouse" <<SH
 #!/usr/bin/env bash
+[ "\${1:-}" != status ] || exit 0
 printf '%s\n' "\$*" >> "$case_dir/treehouse.log"
 exit 0
 SH

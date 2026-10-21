@@ -2068,8 +2068,6 @@ test_secondmate_force_teardown_refuses_duplicated_child_slot() {
   err="$TMP_ROOT/force-duplicate-slot.err"
   mkdir -p "$home/state" "$home/data" "$subhome/state" "$(dirname "$childwt")"
   fm_git_worktree "$childproj" "$childwt" duplicate-child
-  printf '{"worktrees":[{"name":"1","path":"%s"}]}\n' "$childwt" \
-    > "$TMP_ROOT/force-duplicate-slot-pool/treehouse-state.json"
   printf 'domain\n' > "$subhome/.fm-secondmate-home"
   cat > "$home/state/domain.meta" <<EOF
 window=firstmate:fm-domain
@@ -2095,6 +2093,7 @@ yolo=off
 EOF
   done
   fakebin=$(make_fake_tmux "$TMP_ROOT/force-duplicate-slot-fake")
+  fm_fake_treehouse_pool "$fakebin" "$childwt"
   log="$TMP_ROOT/force-duplicate-slot-fake/tmux.log"
 
   set +e
@@ -2122,8 +2121,6 @@ test_secondmate_force_teardown_preserves_child_on_unproven_lock() {
   err="$TMP_ROOT/force-lock-child.err"
   mkdir -p "$home/state" "$home/data" "$subhome/state" "$(dirname "$childwt")"
   fm_git_worktree "$childproj" "$childwt" force-child-lock
-  printf '{"worktrees":[{"name":"1","path":"%s"}]}\n' "$childwt" \
-    > "$TMP_ROOT/force-lock-child-pool/treehouse-state.json"
   printf 'domain\n' > "$subhome/.fm-secondmate-home"
   cat > "$home/state/domain.meta" <<EOF
 window=firstmate:fm-domain
@@ -2179,6 +2176,7 @@ SH
 exit 0
 SH
   chmod +x "$fakebin/treehouse" "$fakebin/lsof"
+  fm_fake_treehouse_pool "$fakebin" "$childwt"
   lock=$(git -C "$childwt" rev-parse --git-path index.lock)
   mkdir -p "$(dirname "$lock")"
   : > "$lock"
