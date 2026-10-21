@@ -685,13 +685,14 @@ lay_out_as_pool_slot() {
   git -C "$PROJECT_DIR" worktree move "$POOL_DIR" "$slot_root/1/project"
   fm_fake_treehouse_pool "$FAKEBIN_DIR" "$slot_root/1/project"
   POOL_DIR="$slot_root/1/project"
-  SLOT_CLAIM="$slot_root/1/.fm-slot-owner-project"
+  SLOT_CLAIM=$(fm_test_slot_owner_claim_path "$HOME_DIR" "$POOL_DIR")
 }
 
 # The same slot under a templated worktree_path, "<root>/{repo}-{slot}":
-# in this layout, every slot shares one parent and Treehouse keeps the pool
-# state elsewhere, so only Treehouse's own listing says this is a slot. A
-# sibling slot is listed too, so its claim shows the two never share a file.
+# in this layout, every slot shares one parent, Treehouse keeps the pool
+# state elsewhere, and the shared parent is not Firstmate's to write, so only
+# Treehouse's own listing says this is a slot. A sibling slot is listed too, so
+# its claim shows the two never share a file.
 lay_out_as_templated_pool_slot() {
   local slot_root="$CASE_DIR/slots"
   mkdir -p "$slot_root"
@@ -699,8 +700,9 @@ lay_out_as_templated_pool_slot() {
   git -C "$PROJECT_DIR" worktree add --quiet --detach "$slot_root/project-2" "$INITIAL_SHA"
   fm_fake_treehouse_pool "$FAKEBIN_DIR" "$slot_root/project-1" "$slot_root/project-2"
   POOL_DIR="$slot_root/project-1"
-  SLOT_CLAIM="$slot_root/.fm-slot-owner-project-1"
-  SIBLING_SLOT_CLAIM="$slot_root/.fm-slot-owner-project-2"
+  SLOT_CLAIM=$(fm_test_slot_owner_claim_path "$HOME_DIR" "$POOL_DIR")
+  SIBLING_SLOT_CLAIM=$(fm_test_slot_owner_claim_path "$HOME_DIR" "$slot_root/project-2")
+  chmod 555 "$slot_root"
 }
 
 # The spawn side of the slot-owner claim that bin/fm-teardown.sh later reads:
@@ -782,7 +784,10 @@ test_templated_pool_slot_is_claimed_per_slot() {
     || fail "the templated slot claim does not name the spawned task: $(cat "$SLOT_CLAIM")"
   grep -Fxq -- "task=sibling-task" "$SIBLING_SLOT_CLAIM" \
     || fail "claiming one templated slot rewrote its sibling's claim: $(cat "$SIBLING_SLOT_CLAIM")"
-  assert_absent "$CASE_DIR/slots/.fm-slot-owner" "spawn wrote a claim every templated slot would share"
+  assert_not_equals "$SLOT_CLAIM" "$SIBLING_SLOT_CLAIM" "two templated slots share one claim file"
+  [ -z "$(find "$CASE_DIR/slots" -maxdepth 1 -name '.fm-slot-owner*')" ] \
+    || fail "spawn wrote a claim into the shared templated slot root"
+  chmod 755 "$CASE_DIR/slots"
 
   id='pool-templated-unreadable-r1'
   rec=$(make_case templated-unreadable "$id")
@@ -796,6 +801,7 @@ test_templated_pool_slot_is_claimed_per_slot() {
     "spawn did not name the unreadable Treehouse status as the reason"
   [ ! -e "$HOME_DIR/state/$id.meta" ] || fail "spawn published a record for an unverifiable slot"
   assert_absent "$SLOT_CLAIM" "spawn claimed a slot Treehouse could not confirm"
+  chmod 755 "$CASE_DIR/slots"
   pass "a templated Treehouse slot is claimed under its own name, and an unreadable pool refuses"
 }
 
@@ -895,8 +901,8 @@ test_refused_launch_leaves_the_pool_for_a_retry_and_a_second_task() {
   git -C "$PROJECT_DIR" worktree move "$POOL_DIR" "$slot_root/1/project"
   git -C "$PROJECT_DIR" worktree add --quiet --detach "$slot_root/2/project" "$INITIAL_SHA"
   fm_fake_treehouse_pool "$FAKEBIN_DIR" "$slot_root/1/project" "$slot_root/2/project"
-  claim1="$slot_root/1/.fm-slot-owner-project"
-  claim2="$slot_root/2/.fm-slot-owner-project"
+  claim1=$(fm_test_slot_owner_claim_path "$HOME_DIR" "$slot_root/1/project")
+  claim2=$(fm_test_slot_owner_claim_path "$HOME_DIR" "$slot_root/2/project")
   world="$CASE_DIR/tmux-world"
   install_pool_world_tmux "$FAKEBIN_DIR" "$world" "$slot_root"
   cat > "$FAKEBIN_DIR/polytoken" <<'SH'
@@ -990,7 +996,7 @@ SH
     "the abort did not report skipping its per-id cleanup"$'\n'"$out"
   [ -d "/tmp/fm-$id" ] || fail "the abort removed the task temp root while another spawn held the per-id lock"
   [ ! -e "$world/fm-$id.id" ] || fail "the contended abort left its window open"
-  [ ! -e "$slot_root/1/.fm-slot-owner-project" ] || fail "the contended abort left its slot claim behind"
+  [ ! -e "$(fm_test_slot_owner_claim_path "$HOME_DIR" "$slot_root/1/project")" ] || fail "the contended abort left its slot claim behind"
   rm -rf "/tmp/fm-$id"
   pass "a refused polytoken launch leaves its per-id paths alone while another spawn holds the per-id lock"
 }
@@ -1017,7 +1023,7 @@ test_non_polytoken_refused_launch_keeps_its_window() {
   assert_contains "$out" "could not fetch origin" "the codex refusal message changed"$'\n'"$out"
   [ ! -e "$HOME_DIR/state/$id.meta" ] || fail "the refused codex launch published a task record"
   [ -e "$world/fm-$id.id" ] || fail "a non-polytoken refusal closed its window, unlike main"
-  [ ! -e "$slot_root/1/.fm-slot-owner-project" ] || fail "the refused codex launch left its slot claim"
+  [ ! -e "$(fm_test_slot_owner_claim_path "$HOME_DIR" "$slot_root/1/project")" ] || fail "the refused codex launch left its slot claim"
   pass "a non-polytoken launch refused after its slot claim keeps main's abort behavior"
 }
 

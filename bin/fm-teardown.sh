@@ -528,9 +528,11 @@ fi
 fm_lease_guard "$ID" "teardown (fm-teardown)"
 
 # A recorded worktree Treehouse could not be asked about may be a pool slot, and
-# returning one unrecognised would skip every slot-ownership check below.
-treehouse_pool_slot_unknown_refusal() {  # <task-label> <worktree> <project>
-  echo "REFUSED: cannot tell whether task $1's recorded worktree ${2:-<missing>} is a Treehouse pool slot: 'treehouse status --json' from ${3:-<missing>} could not be run or read (it needs treehouse and jq on PATH); nothing was changed - not even with --force." >&2
+# returning one unrecognised would skip every slot-ownership check below. The
+# optional outcome replaces "nothing was changed" for a refusal reached after
+# earlier cleanup steps already ran.
+treehouse_pool_slot_unknown_refusal() {  # <task-label> <worktree> <project> [outcome]
+  echo "REFUSED: cannot tell whether task $1's recorded worktree ${2:-<missing>} is a Treehouse pool slot: 'treehouse status --json' from ${3:-<missing>} could not be run or read (it needs treehouse and jq on PATH); ${4:-nothing was changed - not even with --force}." >&2
   echo "Make Treehouse's status readable from that project, then re-run teardown." >&2
 }
 
@@ -2587,7 +2589,7 @@ require_exclusive_task_worktree_slot() {
 }
 
 # Positive slot ownership, read from the claim the task that took the slot wrote
-# into the slot itself (bin/fm-wake-lib.sh owns the claim and its states).
+# for it (bin/fm-wake-lib.sh owns the claim, its location, and its states).
 #
 # For a slot this task still claims, or one with no claim, the record scan above
 # proves that no OTHER task record names it. It cannot prove that THIS record is
@@ -2620,7 +2622,9 @@ require_owned_worktree_slot_record() {  # <task-id> <worktree>
       return "$TEARDOWN_SLOT_REASSIGNED_RC"
       ;;
   esac
-  marker=$(fm_treehouse_slot_owner_marker "$worktree" 2>/dev/null) || marker="beside $worktree"
+  marker=${FM_TREEHOUSE_SLOT_OWNER_FILE:-}
+  [ -n "$marker" ] || marker=$(fm_treehouse_slot_owner_marker "$worktree" 2>/dev/null) \
+    || marker="for $worktree"
   echo "REFUSED: task $record_id's recorded worktree $worktree carries a slot-owner claim that cannot be read, so the slot cannot be proved to still be this task's; nothing was changed - not even with --force." >&2
   echo "Inspect or repair the claim file at $marker (task= and home= lines), then re-run teardown." >&2
   return 1
@@ -3472,7 +3476,8 @@ cleanup_firstmate_home_children() {
       child_pool_rc=0
       fm_treehouse_pool_slot "$child_proj" "$child_wt" || child_pool_rc=$?
       if [ "$child_pool_rc" = 2 ]; then
-        treehouse_pool_slot_unknown_refusal "child $child_id" "$child_wt" "$child_proj"
+        treehouse_pool_slot_unknown_refusal "child $child_id" "$child_wt" "$child_proj" \
+          "that copy was left untouched, but cleanup steps for this home that ran before it are not undone"
         return 1
       fi
       if [ "$child_pool_rc" = 0 ]; then

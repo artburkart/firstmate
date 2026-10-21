@@ -533,6 +533,14 @@ SH
     --args "$@" > "$fakebin/.treehouse-pool-status.json"
 }
 
+# fm_test_slot_owner_claim_path <home> <slot-path>
+# Prints where bin/fm-wake-lib.sh keeps the owner claim for <slot-path> as seen
+# from Firstmate home <home>, so a fixture can plant or inspect it.
+fm_test_slot_owner_claim_path() {
+  # shellcheck disable=SC2016 # Positional parameters expand in the child shell.
+  FM_HOME=$1 bash -c '. "$1"; fm_treehouse_slot_owner_marker "$2"' _ "$ROOT/bin/fm-wake-lib.sh" "$2"
+}
+
 # fm_fake_crash_injector <fakebin>
 # Drops an `fm-crash-inject <pid>` shim that a PATH fake calls to simulate a
 # hard crash of the process under test. It SIGKILLs <pid> and then returns only

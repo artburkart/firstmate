@@ -47,9 +47,13 @@ mark_case_as_treehouse_pool() {  # <case>
   : > "$dir/worktree/sentinel"
 }
 
+slot_claim() {  # <case>
+  fm_test_slot_owner_claim_path "$1/home" "$1/pool/1/project"
+}
+
 claim_pool_slot() {  # <case> <task-id> [home]
   local dir=$1 id=$2 home=${3:-$1/home}
-  printf 'task=%s\nhome=%s\n' "$id" "$home" > "$dir/pool/1/.fm-slot-owner-project"
+  printf 'task=%s\nhome=%s\n' "$id" "$home" > "$(slot_claim "$dir")"
 }
 
 run_case() {  # <case> <id>
@@ -922,8 +926,8 @@ test_remote_layout_homes_serialize_on_one_project_lock() {
 assert_reassigned_slot_left_alone() {  # <case> <id> <other> <description>
   local dir=$1 id=$2 other=$3 description=$4
   assert_absent "$dir/home/state/$id.meta" "$description: the stale task's own record was not removed"
-  assert_present "$dir/pool/1/.fm-slot-owner-project" "$description: another task's slot claim was removed"
-  assert_contains "$(cat "$dir/pool/1/.fm-slot-owner-project")" "task=$other" \
+  assert_present "$(slot_claim "$dir")" "$description: another task's slot claim was removed"
+  assert_contains "$(cat "$(slot_claim "$dir")")" "task=$other" \
     "$description: another task's slot claim was rewritten"
   assert_present "$dir/pool/1/project/.git" "$description: the reassigned slot's checkout was removed"
   ! grep -Fq "treehouse <return>" "$dir/runtime.log" \
@@ -1002,7 +1006,7 @@ test_reassigned_pool_slot_finishes_own_cleanup_without_touching_the_slot() {
   fm_write_meta "$dir/home/state/$id.meta" \
     "window=firstmate:fm-$id" "endpoint_task_id=$id" \
     "worktree=$dir/worktree" "project=$dir/project" "kind=scout"
-  printf 'not-a-claim\n' > "$dir/pool/1/.fm-slot-owner-project"
+  printf 'not-a-claim\n' > "$(slot_claim "$dir")"
 
   set +e
   run_case "$dir" "$id" > "$dir/stdout" 2> "$dir/stderr"
@@ -1010,11 +1014,11 @@ test_reassigned_pool_slot_finishes_own_cleanup_without_touching_the_slot() {
   set -e
   [ "$rc" -ne 0 ] || fail "teardown returned a pool slot whose claim could not be read"
   assert_present "$dir/worktree/sentinel" "teardown reset a pool slot whose claim could not be read"
-  assert_present "$dir/pool/1/.fm-slot-owner-project" "teardown removed an unreadable slot claim"
+  assert_present "$(slot_claim "$dir")" "teardown removed an unreadable slot claim"
   assert_present "$dir/home/state/$id.meta" "teardown removed the task record on an unreadable claim"
   [ ! -s "$dir/runtime.log" ] \
     || fail "teardown reached the runtime on an unreadable slot claim: $(cat "$dir/runtime.log")"
-  assert_contains "$(cat "$dir/stderr")" "$dir/pool/1/.fm-slot-owner-project" \
+  assert_contains "$(cat "$dir/stderr")" "$(slot_claim "$dir")" \
     "unreadable-claim refusal should name the claim file to inspect"
 
   pass "fm-teardown: a pool slot claimed by another task is left alone while the task's own cleanup finishes"
@@ -1050,7 +1054,7 @@ test_stale_record_on_claimed_slot_retires_then_claimant_tears_down() {
   run_case "$dir" "$other" > "$dir/stdout" 2> "$dir/stderr" \
     || fail "claimant teardown failed after the stale record retired: $(cat "$dir/stderr")"
   assert_absent "$dir/home/state/$other.meta" "claimant teardown left its record"
-  assert_absent "$dir/pool/1/.fm-slot-owner-project" "claimant teardown left its spent slot claim behind"
+  assert_absent "$(slot_claim "$dir")" "claimant teardown left its spent slot claim behind"
   grep -Fq "treehouse <return>" "$dir/runtime.log" \
     || fail "claimant teardown did not return its pool slot: $(cat "$dir/runtime.log")"
 
@@ -1072,7 +1076,7 @@ test_own_and_absent_slot_claims_still_tear_down() {
   run_case "$dir" "$id" > "$dir/stdout" 2> "$dir/stderr" \
     || fail "teardown of a task holding its own slot claim failed: $(cat "$dir/stderr")"
   assert_absent "$dir/home/state/$id.meta" "own-claim teardown left the task record"
-  assert_absent "$dir/pool/1/.fm-slot-owner-project" "own-claim teardown left its spent slot claim behind"
+  assert_absent "$(slot_claim "$dir")" "own-claim teardown left its spent slot claim behind"
   grep -Fq "treehouse <return>" "$dir/runtime.log" \
     || fail "own-claim teardown did not return its own pool slot: $(cat "$dir/runtime.log")"
 

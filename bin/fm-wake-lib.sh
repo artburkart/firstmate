@@ -1574,7 +1574,9 @@ fm_treehouse_project_lock_path() {  # <project-dir>
 # every slot. Asking Treehouse rather than reading the path shape recognises a
 # templated worktree_path (such as "/srv/slots/{repo}-{slot}", whose
 # pool state lives under ~/.treehouse rather than beside the slots) exactly
-# like the default <pool>/<slot>/<repo> layout. The slot must also share the
+# like the default <pool>/<slot>/<repo> layout, where an entry naming the
+# <pool>/<slot> directory rather than the checkout inside it is accepted too:
+# reading a slot as a pool slot only adds checks. The slot must also share the
 # recorded project's Git common directory; an ordinary linked worktree is not
 # evidence that Treehouse owns it.
 #
@@ -1582,15 +1584,17 @@ fm_treehouse_project_lock_path() {  # <project-dir>
 # missing directory, another repository, or a listing that does not name it,
 # including an empty answer from a status that succeeded. Returns 2 when
 # Treehouse cannot be asked or its answer cannot be read - treehouse or jq is
-# not on PATH, the status fails, or it prints something other than a JSON
-# array. A caller about to claim or return a slot must refuse on 2 rather than
-# treat the path as an ordinary worktree: an unrecognised slot skips every
-# ownership check, while `treehouse return --force` still kills whatever runs
-# in it and resets its copy.
+# not on PATH, the status fails, or it prints anything but a JSON array whose
+# every entry is an object with an absolute string path. A caller about to
+# claim or return a slot must refuse on 2 rather than treat the path as an
+# ordinary worktree: an unrecognised slot skips every ownership check, while
+# `treehouse return --force` still kills whatever runs in it and resets its
+# copy.
 fm_treehouse_pool_slot() {  # <project-dir> <worktree>
-  local project=$1 worktree=$2 slot project_common slot_common out listed listed_real
+  local project=$1 worktree=$2 slot slot_dir project_common slot_common out listed listed_real
   [ -d "$project" ] && [ -d "$worktree" ] || return 1
   slot=$(CDPATH='' cd -- "$worktree" 2>/dev/null && pwd -P) || return 1
+  slot_dir=$(dirname "$slot")
   project_common=$(git -C "$project" rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || return 1
   slot_common=$(git -C "$slot" rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || return 1
   project_common=$(CDPATH='' cd -- "$project_common" 2>/dev/null && pwd -P) || return 1
@@ -1599,14 +1603,16 @@ fm_treehouse_pool_slot() {  # <project-dir> <worktree>
   command -v treehouse >/dev/null 2>&1 && command -v jq >/dev/null 2>&1 || return 2
   out=$(CDPATH='' cd -- "$project" 2>/dev/null && treehouse status --json 2>/dev/null) || return 2
   [ -n "$out" ] || return 1
-  printf '%s' "$out" | jq -e 'type == "array"' >/dev/null 2>&1 || return 2
+  printf '%s' "$out" | jq -e 'type == "array"
+    and all(.[]; type == "object" and (.path | type) == "string" and (.path | startswith("/")))' \
+    >/dev/null 2>&1 || return 2
   # NUL-separated, so no path byte can split or join an entry.
   while IFS= read -r -d '' listed; do
-    case "$listed" in /*) ;; *) continue ;; esac
     [ "$listed" != "$slot" ] || return 0
     listed_real=$(CDPATH='' cd -- "$listed" 2>/dev/null && pwd -P) || continue
     [ "$listed_real" != "$slot" ] || return 0
-  done < <(printf '%s' "$out" | jq -j '.[] | objects | .path | strings | ., "\u0000"' 2>/dev/null)
+    [ "$listed_real" != "$slot_dir" ] || return 0
+  done < <(printf '%s' "$out" | jq -j '.[] | .path, "\u0000"' 2>/dev/null)
   return 1
 }
 
@@ -1628,25 +1634,44 @@ fm_treehouse_pool_slot() {  # <project-dir> <worktree>
 # released by bin/fm-teardown.sh when the slot goes back to the pool. Moving
 # crewmate spawns onto the durable lease is separate follow-up work.
 #
-# The claim lives beside the slot's checkout as .fm-slot-owner-<checkout name>
-# - a sibling rather than a file inside it - so claiming a slot can never dirty
-# the copy teardown's landed-work checks inspect, and a returned slot carries no
-# untracked leftover from it. The name carries the checkout's own directory name
-# because the parent is not always the slot's alone: the default layout gives
-# each slot its own <pool>/<slot>/ directory, but a templated worktree_path such
-# as "/srv/slots/{repo}-{slot}" puts every slot of every repository under
-# one parent, where a single fixed name would be one claim they all overwrite.
+# The claim lives in the local root home's state directory, beside the
+# Treehouse project lock and anchored the same way, so every home on this
+# machine that can reach the pool reads and writes the same file. It is keyed by
+# the slot's canonical path, so two slots never share one claim whatever the
+# pool layout: a templated worktree_path such as "/srv/slots/{repo}-{slot}"
+# puts every slot of every repository under one parent, and that parent need
+# not be writable by Firstmate at all. Keeping the claim out of the slot also
+# means claiming one can never dirty the copy teardown's landed-work checks
+# inspect, and a returned slot carries no leftover from it.
 fm_treehouse_slot_owner_marker() {  # <worktree>
-  local worktree=$1 slot
+  local worktree=$1 slot root hash
   slot=$(CDPATH='' cd -- "$worktree" 2>/dev/null && pwd -P) || return 1
-  [ "$slot" != / ] || return 1
-  printf '%s/.fm-slot-owner-%s\n' "$(dirname "$slot")" "$(basename "$slot")"
+  root=$(fm_firstmate_root_home "$FM_HOME") || return 1
+  [ -d "$root/state" ] || return 1
+  hash=$(printf '%s' "$slot" | git hash-object --stdin 2>/dev/null) || return 1
+  printf '%s/.treehouse-slot-owner-%s\n' "$root/state" "$hash"
+}
+
+# The claim an earlier Firstmate wrote at <pool>/<slot>/.fm-slot-owner, a
+# sibling of the checkout. That version recognised a slot only by the default
+# <pool>/<slot>/<repo> layout with <pool>/treehouse-state.json beside it, so a
+# legacy claim can exist only where that shape holds, and there the parent is
+# the slot's alone. It is still read so a task in flight across the upgrade
+# keeps the protection its claim gave it; nothing writes it any more.
+fm_treehouse_slot_owner_legacy_marker() {  # <worktree>
+  local worktree=$1 slot state
+  slot=$(CDPATH='' cd -- "$worktree" 2>/dev/null && pwd -P) || return 1
+  state="$(dirname "$(dirname "$slot")")/treehouse-state.json"
+  [ -f "$state" ] && [ ! -L "$state" ] || return 1
+  printf '%s/.fm-slot-owner\n' "$(dirname "$slot")"
 }
 
 # Claim a pool slot for a task, replacing whatever the previous holder left.
 # The rename is atomic, so a reader either sees the old claim or the new one.
+# The allocation that precedes it proves any legacy claim on the slot is stale,
+# so a plain legacy claim file is dropped once the new claim is in place.
 fm_treehouse_slot_owner_claim() {  # <worktree> <task-id> <home>
-  local worktree=$1 id=$2 home=$3 marker tmp
+  local worktree=$1 id=$2 home=$3 marker legacy tmp
   [ -n "$id" ] || return 1
   marker=$(fm_treehouse_slot_owner_marker "$worktree") || return 1
   # Only a plain claim file may be replaced: renaming onto a directory would
@@ -1655,15 +1680,17 @@ fm_treehouse_slot_owner_claim() {  # <worktree> <task-id> <home>
      && { [ ! -f "$marker" ] || [ -L "$marker" ]; }; then
     return 1
   fi
-  # The temporary name sits outside the .fm-slot-owner-* namespace, so it can
-  # never be another slot's claim in a parent that slots share.
-  tmp="${marker%/*}/.fm-slot-owner.tmp.${BASHPID:-$$}.${marker##*/.fm-slot-owner-}"
+  tmp="$marker.tmp.${BASHPID:-$$}"
   rm -f "$tmp" || return 1
   {
     printf 'task=%s\n' "$id"
     printf 'home=%s\n' "$home"
   } > "$tmp" 2>/dev/null || { rm -f "$tmp"; return 1; }
   mv -f "$tmp" "$marker" 2>/dev/null || { rm -f "$tmp"; return 1; }
+  if legacy=$(fm_treehouse_slot_owner_legacy_marker "$worktree") \
+     && [ -f "$legacy" ] && [ ! -L "$legacy" ]; then
+    rm -f "$legacy" 2>/dev/null || true
+  fi
 }
 
 # Read the claim on a pool slot and compare it with a task id.
@@ -1673,18 +1700,28 @@ fm_treehouse_slot_owner_claim() {  # <worktree> <task-id> <home>
 #   absent - no claim: the slot was taken before claims existed, or returned since
 #   unsafe - a claim file exists but cannot be read as a claim
 # FM_TREEHOUSE_SLOT_OWNER_ID and FM_TREEHOUSE_SLOT_OWNER_HOME carry the recorded
-# claimant as evidence. The home is reported, never matched: a home that moved
-# must not turn a task's own slot into a refusal.
+# claimant as evidence, and FM_TREEHOUSE_SLOT_OWNER_FILE the file that answered.
+# The home is reported, never matched: a home that moved must not turn a task's
+# own slot into a refusal. The current claim answers when it exists; otherwise
+# a legacy claim (fm_treehouse_slot_owner_legacy_marker) does.
 fm_treehouse_slot_owner_state() {  # <worktree> <task-id>
-  local worktree=$1 id=$2 marker line owner_id='' owner_home=''
+  local worktree=$1 id=$2 marker legacy line owner_id='' owner_home=''
   FM_TREEHOUSE_SLOT_OWNER=unsafe
   FM_TREEHOUSE_SLOT_OWNER_ID=
   FM_TREEHOUSE_SLOT_OWNER_HOME=
+  FM_TREEHOUSE_SLOT_OWNER_FILE=
   marker=$(fm_treehouse_slot_owner_marker "$worktree") || return 0
   if [ ! -e "$marker" ] && [ ! -L "$marker" ]; then
-    FM_TREEHOUSE_SLOT_OWNER=absent
-    return 0
+    if legacy=$(fm_treehouse_slot_owner_legacy_marker "$worktree") \
+       && { [ -e "$legacy" ] || [ -L "$legacy" ]; }; then
+      marker=$legacy
+    else
+      FM_TREEHOUSE_SLOT_OWNER=absent
+      return 0
+    fi
   fi
+  # shellcheck disable=SC2034 # Output global, read by the sourcing caller.
+  FM_TREEHOUSE_SLOT_OWNER_FILE=$marker
   [ -f "$marker" ] && [ ! -L "$marker" ] || return 0
   while IFS= read -r line || [ -n "$line" ]; do
     case "$line" in
@@ -1708,11 +1745,10 @@ fm_treehouse_slot_owner_state() {  # <worktree> <task-id>
 # another task's claim, so a misdirected release cannot strip the evidence that
 # protects the slot's real owner.
 fm_treehouse_slot_owner_release() {  # <worktree> <task-id>
-  local worktree=$1 id=$2 marker
+  local worktree=$1 id=$2
   fm_treehouse_slot_owner_state "$worktree" "$id"
   [ "$FM_TREEHOUSE_SLOT_OWNER" = mine ] || return 0
-  marker=$(fm_treehouse_slot_owner_marker "$worktree") || return 0
-  rm -f "$marker" 2>/dev/null || true
+  rm -f "$FM_TREEHOUSE_SLOT_OWNER_FILE" 2>/dev/null || true
 }
 
 fm_failure_episode_reset() {

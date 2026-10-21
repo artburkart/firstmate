@@ -7,7 +7,9 @@
 # <pool>/<slot>/<repo> path shape, so a templated slot was never recognised:
 # spawn wrote no claim, and teardown skipped the project lock, the record scan,
 # and the owner check while `treehouse return --force` still ran. Every
-# templated slot would also have shared one claim file, <root>/.fm-slot-owner.
+# templated slot would also have shared one claim file, <root>/.fm-slot-owner,
+# in a directory Firstmate cannot write; claims now live in the
+# Firstmate root home's state, keyed by slot.
 #
 # A fake treehouse lists the pool; nothing here touches a real pool,
 # ~/.treehouse, or /srv/slots.
@@ -102,6 +104,10 @@ test_default_and_templated_layouts_are_recognised() {
     "a default-layout slot was not recognised as a pool slot"
   assert_not_equals "$(marker "$dir" "$dir/pool/1/project")" "$(marker "$dir" "$dir/pool/2/project")" \
     "two default-layout slots share one slot-owner claim"
+  # Treehouse may name the <pool>/<slot> directory instead of the checkout.
+  fm_fake_treehouse_pool "$dir/fakebin" "$dir/pool/1" "$dir/pool/2"
+  assert_equals 0 "$(pool_rc "$dir" "$dir/pool/1/project")" \
+    "a default-layout slot listed by its slot directory was not recognised"
 
   dir=$(make_case templated-layout)
   slot_a="$dir/slots/project-1"
@@ -119,8 +125,10 @@ test_default_and_templated_layouts_are_recognised() {
     "the second templated-layout slot was not recognised as a pool slot"
   assert_not_equals "$(marker "$dir" "$slot_a")" "$(marker "$dir" "$slot_b")" \
     "two templated slots share one slot-owner claim"
-  assert_not_equals "$(marker "$dir" "$slot_a")" "$dir/slots/.fm-slot-owner" \
-    "a templated slot's claim is the fixed name every slot under that root would share"
+  case "$(marker "$dir" "$slot_a")" in
+    "$dir/home/state/"*) ;;
+    *) fail "a templated slot's claim is not kept in the Firstmate home's state: $(marker "$dir" "$slot_a")" ;;
+  esac
 
   # A listing that reaches the slot through a symlinked root still names it.
   ln -s "$dir/slots" "$dir/slots-link"
@@ -139,6 +147,8 @@ test_claims_on_sibling_templated_slots_stay_separate() {
   add_slot "$dir" "$slot_a"
   add_slot "$dir" "$slot_b"
   fm_fake_treehouse_pool "$dir/fakebin" "$slot_a" "$slot_b"
+  # The shared slot root is not writable; claiming must not need to write it.
+  chmod 555 "$dir/slots"
 
   lib "$dir" fm_treehouse_slot_owner_claim "$slot_a" task-a "$dir/home" \
     || fail "claiming the first templated slot failed"
@@ -152,8 +162,9 @@ test_claims_on_sibling_templated_slots_stay_separate() {
   assert_absent "$(marker "$dir" "$slot_a")" "releasing the first slot left its claim"
   assert_contains "$(cat "$(marker "$dir" "$slot_b")")" "task=task-b" \
     "releasing the first slot disturbed the second slot's claim"
-  [ -z "$(find "$dir/slots" -maxdepth 1 -name '.fm-slot-owner.tmp.*')" ] \
+  [ -z "$(find "$dir/home/state" -maxdepth 1 -name '.treehouse-slot-owner-*.tmp.*')" ] \
     || fail "a claim left its temporary file behind"
+  chmod 755 "$dir/slots"
   pass "claims on sibling templated slots are written, read, and released independently"
 }
 
@@ -188,6 +199,15 @@ test_membership_is_only_what_treehouse_answers() {
   assert_equals 2 "$(pool_rc "$dir" "$slot")" "a non-JSON Treehouse answer was not reported as unknown"
   printf '{"worktrees":[{"name":"1","path":"%s"}]}\n' "$slot" > "$dir/fakebin/.treehouse-pool-status.json"
   assert_equals 2 "$(pool_rc "$dir" "$slot")" "a Treehouse answer that is not a list was not reported as unknown"
+  # An entry that cannot name a slot makes the whole listing unreadable, even
+  # beside a well-formed entry, rather than silently shrinking the pool.
+  printf '[{"name":"1","worktree":"%s"}]\n' "$slot" > "$dir/fakebin/.treehouse-pool-status.json"
+  assert_equals 2 "$(pool_rc "$dir" "$slot")" "an entry without a path was not reported as unknown"
+  printf '[{"name":"1","path":"slots/project-1"}]\n' > "$dir/fakebin/.treehouse-pool-status.json"
+  assert_equals 2 "$(pool_rc "$dir" "$slot")" "a relative listed path was not reported as unknown"
+  printf '[{"name":"2","path":"%s"},"project-1"]\n' "$dir/slots/project-unlisted" \
+    > "$dir/fakebin/.treehouse-pool-status.json"
+  assert_equals 2 "$(pool_rc "$dir" "$slot")" "a listing with a non-object entry was not reported as unknown"
   cat > "$dir/fakebin/treehouse" <<'SH'
 #!/usr/bin/env bash
 echo "treehouse: cannot read pool state" >&2
@@ -327,6 +347,59 @@ test_own_templated_slot_returns_and_releases_only_its_claim() {
   pass "a task's own templated slot is returned and only its own claim is dropped"
 }
 
+# A claim the previous Firstmate wrote at <pool>/<slot>/.fm-slot-owner still
+# protects a task in flight across the upgrade, but only where that version
+# could have written it: the default layout with the pool state beside it.
+test_legacy_default_layout_claims_are_still_honoured() {
+  local dir id=stale-task rc legacy
+  dir=$(make_case legacy-claim)
+  mkdir -p "$dir/pool/1" "$dir/pool/2"
+  add_slot "$dir" "$dir/pool/1/project"
+  add_slot "$dir" "$dir/pool/2/project"
+  : > "$dir/pool/1/project/sentinel"
+  printf '{"worktrees":[]}\n' > "$dir/pool/treehouse-state.json"
+  fm_fake_treehouse_pool "$dir/fakebin" "$dir/pool/1/project" "$dir/pool/2/project"
+  legacy="$dir/pool/1/.fm-slot-owner"
+  printf 'task=pre-upgrade-holder\nhome=%s\n' "$dir/other-home" > "$legacy"
+  write_record "$dir" "$id" "$dir/pool/1/project"
+
+  set +e
+  run_teardown "$dir" "$id" --force > "$dir/stdout" 2> "$dir/stderr"
+  rc=$?
+  set -e
+  [ "$rc" -eq 0 ] || fail "teardown of a stale record on a legacy-claimed slot failed: $(cat "$dir/stderr")"
+  ! grep -Fq "treehouse <return>" "$dir/runtime.log" \
+    || fail "a stale record returned a slot its legacy claim gives to another task: $(cat "$dir/runtime.log")"
+  assert_present "$dir/pool/1/project/sentinel" "the stale record reset the legacy claimant's copy"
+  assert_contains "$(cat "$legacy")" "task=pre-upgrade-holder" "the stale record rewrote the legacy claim"
+  assert_contains "$(cat "$dir/stderr")" "pre-upgrade-holder" "teardown did not name the legacy claimant"
+
+  # The legacy claimant's own teardown returns its slot and drops the claim.
+  write_record "$dir" pre-upgrade-holder "$dir/pool/1/project"
+  : > "$dir/runtime.log"
+  run_teardown "$dir" pre-upgrade-holder --force > "$dir/stdout" 2> "$dir/stderr" \
+    || fail "the legacy claimant's teardown failed: $(cat "$dir/stderr")"
+  grep -Fq "treehouse <return>" "$dir/runtime.log" \
+    || fail "the legacy claimant's teardown did not return its slot: $(cat "$dir/runtime.log")"
+  assert_absent "$legacy" "the legacy claimant's teardown left its spent claim"
+
+  # A new claim replaces a stale legacy one rather than leaving two answers.
+  printf 'task=older-holder\nhome=%s\n' "$dir/other-home" > "$dir/pool/2/.fm-slot-owner"
+  lib "$dir" fm_treehouse_slot_owner_claim "$dir/pool/2/project" new-holder "$dir/home" \
+    || fail "claiming a slot that carries a legacy claim failed"
+  assert_absent "$dir/pool/2/.fm-slot-owner" "a new claim left the stale legacy claim behind"
+  assert_equals mine "$(owner_state "$dir" "$dir/pool/2/project" new-holder)" \
+    "the new claim does not name its task"
+
+  # Outside that shape a stray file of the legacy name is not a claim: under a
+  # templated root it would be one file every slot shares.
+  dir=$(templated_case legacy-name-templated)
+  printf 'task=someone-else\n' > "$dir/slots/.fm-slot-owner"
+  assert_equals absent "$(owner_state "$dir" "$dir/slots/project-1" any-task)" \
+    "a shared legacy-named file under a templated root was read as a claim"
+  pass "legacy default-layout claims still protect their slot and are released by their own task"
+}
+
 test_default_and_templated_layouts_are_recognised
 test_claims_on_sibling_templated_slots_stay_separate
 test_membership_is_only_what_treehouse_answers
@@ -335,3 +408,4 @@ test_templated_slot_teardown_holds_the_project_lock
 test_templated_slot_named_by_two_records_refuses
 test_unreadable_treehouse_refuses_teardown
 test_own_templated_slot_returns_and_releases_only_its_claim
+test_legacy_default_layout_claims_are_still_honoured

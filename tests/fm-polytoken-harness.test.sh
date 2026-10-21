@@ -1157,7 +1157,7 @@ test_polytoken_post_launch_failure_drops_its_slot_claim() {
   git -C "$PROJ_DIR" worktree move "$WT_DIR" "$slot_root/1/project"
   WT_DIR="$slot_root/1/project"
   fm_fake_treehouse_pool "$FAKEBIN_DIR" "$WT_DIR"
-  claim="$slot_root/1/.fm-slot-owner-project"
+  claim=$(fm_test_slot_owner_claim_path "$HOME_DIR" "$WT_DIR")
   rc=0
   out=$(PTFAKE_NO_HOOK=1 FM_POLYTOKEN_READY_POLLS=2 FM_POLYTOKEN_POLL_INTERVAL=0 \
     run_polytoken_spawn "$CASE_DIR" "$HOME_DIR" "$PROJ_DIR" "$WT_DIR" "$FAKEBIN_DIR" "$id") || rc=$?
