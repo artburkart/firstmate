@@ -5195,7 +5195,7 @@ elif [ "$KIND" != secondmate ] && [ "$BACKEND" != orca ]; then
   spawn_pool_rc=0
   fm_treehouse_pool_slot "$PROJ_ABS" "$WT" || spawn_pool_rc=$?
   if [ "$spawn_pool_rc" = 2 ]; then
-    echo "error: cannot tell whether $WT is a Treehouse pool slot to claim for task $ID: 'treehouse status --json' from $PROJ_ABS could not be run or read (it needs treehouse and jq on PATH); refusing to launch a worker whose slot could not later be proved to be its own; $(spawn_endpoint_hint)" >&2
+    echo "error: cannot tell whether $WT is a Treehouse pool slot to claim for task $ID: 'treehouse status --json' from $PROJ_ABS could not be run or read (reading it needs jq on PATH); refusing to launch a worker whose slot could not later be proved to be its own; $(spawn_endpoint_hint)" >&2
     exit 1
   fi
   if [ "$spawn_pool_rc" = 0 ]; then

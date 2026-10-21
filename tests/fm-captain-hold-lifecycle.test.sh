@@ -3056,8 +3056,10 @@ done
 exec "$real_tasks_axi" "\$@"
 SH
   chmod +x "$home/fakebin/tasks-axi"
+  # Its pool lists no slots, so only the worktree return itself fails.
   cat > "$home/fakebin/treehouse" <<'SH'
 #!/usr/bin/env bash
+[ "${1:-}" != status ] || { echo '[]'; exit 0; }
 exit 1
 SH
   chmod +x "$home/fakebin/treehouse"

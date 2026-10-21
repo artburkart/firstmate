@@ -532,7 +532,7 @@ fm_lease_guard "$ID" "teardown (fm-teardown)"
 # optional outcome replaces "nothing was changed" for a refusal reached after
 # earlier cleanup steps already ran.
 treehouse_pool_slot_unknown_refusal() {  # <task-label> <worktree> <project> [outcome]
-  echo "REFUSED: cannot tell whether task $1's recorded worktree ${2:-<missing>} is a Treehouse pool slot: 'treehouse status --json' from ${3:-<missing>} could not be run or read (it needs treehouse and jq on PATH); ${4:-nothing was changed - not even with --force}." >&2
+  echo "REFUSED: cannot tell whether task $1's recorded worktree ${2:-<missing>} is a Treehouse pool slot: 'treehouse status --json' from ${3:-<missing>} could not be run or read (reading it needs jq on PATH); ${4:-nothing was changed - not even with --force}." >&2
   echo "Make Treehouse's status readable from that project, then re-run teardown." >&2
 }
 

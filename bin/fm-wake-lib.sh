@@ -1580,16 +1580,17 @@ fm_treehouse_project_lock_path() {  # <project-dir>
 # recorded project's Git common directory; an ordinary linked worktree is not
 # evidence that Treehouse owns it.
 #
-# Returns 0 for a pool slot and 1 for a path that is provably not one: a
-# missing directory, another repository, or a listing that does not name it,
-# including an empty answer from a status that succeeded. Returns 2 when
-# Treehouse cannot be asked or its answer cannot be read - treehouse or jq is
-# not on PATH, the status fails, or it prints anything but a JSON array whose
-# every entry is an object with an absolute string path. A caller about to
-# claim or return a slot must refuse on 2 rather than treat the path as an
-# ordinary worktree: an unrecognised slot skips every ownership check, while
-# `treehouse return --force` still kills whatever runs in it and resets its
-# copy.
+# Returns 0 for a pool slot and 1 for a path that is not one: a missing
+# directory, another repository, a listing that does not name it (including an
+# empty answer from a status that succeeded), or no treehouse on PATH at all,
+# where nothing can return the copy through Treehouse and it stays an ordinary
+# worktree. Returns 2 when treehouse is present but its answer cannot be had or
+# read - jq is not on PATH, the status fails, or it prints anything but a JSON
+# array whose every entry is an object with an absolute string path. A caller
+# about to claim or return a slot must refuse on 2 rather than treat the path
+# as an ordinary worktree: an unrecognised slot skips every ownership check,
+# while `treehouse return --force` still kills whatever runs in it and resets
+# its copy.
 fm_treehouse_pool_slot() {  # <project-dir> <worktree>
   local project=$1 worktree=$2 slot slot_dir project_common slot_common out listed listed_real
   [ -d "$project" ] && [ -d "$worktree" ] || return 1
@@ -1600,7 +1601,8 @@ fm_treehouse_pool_slot() {  # <project-dir> <worktree>
   project_common=$(CDPATH='' cd -- "$project_common" 2>/dev/null && pwd -P) || return 1
   slot_common=$(CDPATH='' cd -- "$slot_common" 2>/dev/null && pwd -P) || return 1
   [ "$project_common" = "$slot_common" ] || return 1
-  command -v treehouse >/dev/null 2>&1 && command -v jq >/dev/null 2>&1 || return 2
+  command -v treehouse >/dev/null 2>&1 || return 1
+  command -v jq >/dev/null 2>&1 || return 2
   out=$(CDPATH='' cd -- "$project" 2>/dev/null && treehouse status --json 2>/dev/null) || return 2
   [ -n "$out" ] || return 1
   printf '%s' "$out" | jq -e 'type == "array"

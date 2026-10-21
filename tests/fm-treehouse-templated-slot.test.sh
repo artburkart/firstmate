@@ -214,13 +214,22 @@ echo "treehouse: cannot read pool state" >&2
 exit 1
 SH
   assert_equals 2 "$(pool_rc "$dir" "$slot")" "a failed Treehouse status was not reported as unknown"
-  rm -f "$dir/fakebin/treehouse"
+  # A listing jq cannot read is unknown even when Treehouse would answer.
+  fm_fake_treehouse_pool "$dir/fakebin" "$slot"
   # shellcheck disable=SC2016 # Positional parameters expand in the child shell.
-  assert_equals 2 "$(FM_HOME="$dir/home" PATH="$dir/fakebin:$(fm_test_base_path_sans "$PATH" treehouse)" \
+  assert_equals 2 "$(FM_HOME="$dir/home" PATH="$dir/fakebin:$(fm_test_base_path_sans "$PATH" jq treehouse)" \
     bash -c '. "$1"; rc=0; fm_treehouse_pool_slot "$2" "$3" || rc=$?; printf %s "$rc"' _ \
     "$ROOT/bin/fm-wake-lib.sh" "$dir/project" "$slot")" \
-    "a missing treehouse was not reported as unknown"
-  pass "pool membership is exactly what Treehouse lists, and an unreadable answer is unknown"
+    "a missing jq was not reported as unknown"
+  # With no treehouse at all nothing can return the copy through it, so an
+  # ordinary linked worktree stays one, as on a host that never installed it.
+  rm -f "$dir/fakebin/treehouse"
+  # shellcheck disable=SC2016 # Positional parameters expand in the child shell.
+  assert_equals 1 "$(FM_HOME="$dir/home" PATH="$dir/fakebin:$(fm_test_base_path_sans "$PATH" treehouse)" \
+    bash -c '. "$1"; rc=0; fm_treehouse_pool_slot "$2" "$3" || rc=$?; printf %s "$rc"' _ \
+    "$ROOT/bin/fm-wake-lib.sh" "$dir/project" "$slot")" \
+    "a host without treehouse took an ordinary linked worktree for a pool slot"
+  pass "pool membership is exactly what Treehouse lists, an unreadable answer is unknown, and no Treehouse means no slot"
 }
 
 templated_case() {  # <name> -> case with slots/project-1 and slots/project-2 listed
