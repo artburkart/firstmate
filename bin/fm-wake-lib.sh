@@ -1675,7 +1675,11 @@ fm_treehouse_default_layout_slot() {  # <canonical-slot>
 # that is either in the default layout or listed by `treehouse status --json`
 # run from the project. The listing covers a templated worktree_path such as
 # "/srv/slots/{repo}-{slot}", whose pool state lives under ~/.treehouse rather
-# than beside the slots. A listing that cannot be had or read answers no.
+# than beside the slots. A listing that cannot be had or read (including when
+# jq is missing) quietly answers no. This preserves the pre-existing fallback:
+# teardown skips the pool-slot lock, record scan, and owner-claim check for an
+# unrecognised copy, but can still run `treehouse return` on it. Recognition
+# failure is not a refusal to return the copy.
 fm_treehouse_pool_slot() {  # <project-dir> <worktree>
   local project=$1 worktree=$2 slot project_common slot_common listed
   [ -d "$project" ] && [ -d "$worktree" ] || return 1
