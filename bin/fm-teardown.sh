@@ -2584,7 +2584,7 @@ require_exclusive_task_worktree_slot() {
 }
 
 # Positive slot ownership, read from the claim the task that took the slot wrote
-# into the slot itself (bin/fm-wake-lib.sh owns the claim and its states).
+# for it (bin/fm-wake-lib.sh owns the claim, its location, and its states).
 #
 # For a slot this task still claims, or one with no claim, the record scan above
 # proves that no OTHER task record names it. It cannot prove that THIS record is
@@ -2617,7 +2617,7 @@ require_owned_worktree_slot_record() {  # <task-id> <worktree>
       return "$TEARDOWN_SLOT_REASSIGNED_RC"
       ;;
   esac
-  marker=$(fm_treehouse_slot_owner_marker "$worktree" 2>/dev/null) || marker="beside $worktree"
+  marker=$(fm_treehouse_slot_owner_marker "$worktree" 2>/dev/null) || marker="for $worktree"
   echo "REFUSED: task $record_id's recorded worktree $worktree carries a slot-owner claim that cannot be read, so the slot cannot be proved to still be this task's; nothing was changed - not even with --force." >&2
   echo "Inspect or repair the claim file at $marker (task= and home= lines), then re-run teardown." >&2
   return 1
