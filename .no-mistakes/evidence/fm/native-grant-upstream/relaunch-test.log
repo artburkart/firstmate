@@ -92,8 +92,8 @@ ok - reclaim: a herdr reclaim rebinds the endpoint and leaves the whole rest of 
 ok - reclaim: a herdr secondmate whose endpoint is gone is sent to its own respawn owner
 ok - reclaim: a rebind refused from a plain shell reports the real cause, not a fabricated session mismatch
 not ok - a relaunch must not re-run a transition the row already reflects
-warning: /tmp/fm-control-relaunch.9Pbx0M/reverify-614/home/data/rl40/launch-brief.md records no ship branch; defaulting to legacy branch fm/rl40
-warning: /tmp/fm-control-relaunch.9Pbx0M/reverify-614/home/data/rl40/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches
-error: task rl40 cannot be dispatched because its backlog data directory is inaccessible: /tmp/fm-control-relaunch.9Pbx0M/reverify-614/home/data (automatic backlog transitions require tasks-axi 0.2.6 or newer with the required update and mv features)
+warning: /tmp/fm-control-relaunch.vWJEIY/reverify-9125/home/data/rl40/launch-brief.md records no ship branch; defaulting to legacy branch fm/rl40
+warning: /tmp/fm-control-relaunch.vWJEIY/reverify-9125/home/data/rl40/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches
+error: task rl40 cannot be dispatched because its backlog data directory is inaccessible: /tmp/fm-control-relaunch.vWJEIY/reverify-9125/home/data (automatic backlog transitions require tasks-axi 0.2.6 or newer with the required update and mv features)
 error: the replacement agent for rl40 could not be launched on claude
-error: rl40's agent was stopped but the replacement did not launch; no agent is running, and its work plus the recorded progress note are preserved at /tmp/fm-control-relaunch.9Pbx0M/reverify-614/wt: expected exit 0, got 1
+error: rl40's agent was stopped but the replacement did not launch; no agent is running, and its work plus the recorded progress note are preserved at /tmp/fm-control-relaunch.vWJEIY/reverify-9125/wt: expected exit 0, got 1

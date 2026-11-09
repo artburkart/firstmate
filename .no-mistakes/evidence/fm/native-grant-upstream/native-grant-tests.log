@@ -1,0 +1,12 @@
+ok - granted recovery: a matching grant recovers a held task once, launches its recorded profile, and leaves the item untouched
+ok - granted recovery: a live agent still refuses, so a grant never adds a second agent
+ok - granted recovery: malformed, expired, future, misnamed and mismatched grants all refuse
+ok - granted recovery: without a grant the gate stays, and a grant cannot change the profile, start new work, or reopen a Done item
+ok - granted recovery: only the recorded account is relaunched, and a refused account leaves the grant unspent
+tests/fm-zz-grant.test.sh: line 3274: /tmp/fm-control-relaunch.UJ7hco/grant-manual-25741/home/config/backlog-backend: No such file or directory
+ok - granted recovery: a manual-backlog home refuses a Done or missing item
+tests/fm-zz-grant.test.sh: line 3297: /tmp/fm-control-relaunch.UJ7hco/grant-manual-held-25583/home/config/backlog-backend: No such file or directory
+ok - granted recovery: a readable held item recovers in a manual-backlog home
+ok - grant with a decoded NUL in an identity field is refused
+ok - grant with NUL padding past the size limit is refused and not spent
+ok - granted recovery: a pane that did not survive refuses instead of rebinding
