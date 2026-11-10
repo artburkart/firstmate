@@ -173,4 +173,4 @@ ok - daemon delivery receipts stop before unread informational lines
 ok - a daemon drain does not consume the primary's unread notes
 ok - an event presented by the primary's outcome backstop is not escalated again
 ok - a primary drain receipt does not cover unpresented actionable events
-exit 0
+exit=0
