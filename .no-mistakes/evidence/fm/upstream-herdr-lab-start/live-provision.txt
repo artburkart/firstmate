@@ -1,0 +1,7 @@
+fm-herdr-lab: lab server for 'fm-lab-live2-1347497-29114' exited before reporting running
+fm-herdr-lab: server output (last 20 lines of /tmp/fm-herdr-lab-1000/fm-lab-live2-1347497-29114.server.log):
+fm-herdr-lab:   Error: Os { code: 30, kind: ReadOnlyFilesystem, message: "Read-only file system" }
+
+real	0m0.268s
+user	0m0.044s
+sys	0m0.042s
