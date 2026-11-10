@@ -1,0 +1,33 @@
+ok - fm-spawn --relaunch: tracked opencode wiring is retired as on main
+ok - fm-control removes the dialog file after exit and after relaunch
+ok - fm-control exit removes the dialog file before it releases the control lock
+ok - fm-control relaunch: a same-harness relaunch replaces the agent in the same endpoint and worktree
+ok - fm-control relaunch: pending composer text refuses before the exit command is typed
+ok - fm-control relaunch: an unreadable composer fails safe before the exit command is typed
+ok - fm-control relaunch: a linked spawning home preserves committed and unfinished work in the recorded copy
+ok - fm-control relaunch: an armed PR poll survives replacement launch publication
+ok - fm-control relaunch: a traced replacement keeps an armed PR poll authenticated
+ok - fm-control relaunch: delivery and concurrent task metadata publication serialize
+ok - fm-control relaunch: disabling tracing clears metadata and pane context
+ok - fm-control relaunch: progress and the Firstmate-worktree worker identity reach the replacement
+ok - fm-control relaunch: the progress note's inbox listing is silent on an empty inbox
+ok - fm-control relaunch: a ship task refuses without the progress note its replacement needs
+ok - fm-control relaunch: switching harness is one ordinary relaunch, and the old wiring goes with the old agent
+ok - fm-control relaunch: a refused relaunch onto polytoken keeps the project's own hook layer and the running agent
+ok - fm-control relaunch: a refused polytoken profile leaves the running agent untouched
+ok - fm-spawn --relaunch: retiring a raw polytoken launch's wiring keeps the project's own layers
+ok - fm-control relaunch: a harness switch resets model and effort unless they are named too
+ok - fm-control relaunch: a prefixed recorded harness can switch adapters transactionally
+ok - fm-control relaunch: a prefixed command requires an explicit replacement harness
+ok - fm-control relaunch: a same-harness relaunch keeps the profile axes it was running with
+ok - granted recovery: a matching grant recovers a held task once, launches its recorded profile, and leaves the item untouched
+ok - granted recovery: a captain hold is never bypassed, and the item stays untouched
+ok - granted recovery: a live agent still refuses, so a grant never adds a second agent
+ok - granted recovery: malformed, expired, future, misnamed and mismatched grants all refuse
+ok - granted recovery: without a grant the gate stays, and a grant cannot change the profile, start new work, or reopen a Done item
+ok - granted recovery: only the recorded account is relaunched, and a refused account leaves the grant unspent
+ok - granted recovery: a manual-backlog home refuses a Done or missing item
+ok - granted recovery: a readable held item recovers in a manual-backlog home
+ok - grant with a decoded NUL in an identity field is refused
+ok - grant with NUL padding past the size limit is refused and not spent
+ok - granted recovery: a pane that did not survive refuses instead of rebinding
