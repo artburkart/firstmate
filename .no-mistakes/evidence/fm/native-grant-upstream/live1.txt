@@ -1,0 +1,5 @@
+name                 status   directory                                        socket
+default              stopped  /tmp/fmg.JS7o/x/herdr                            /tmp/fmg.JS7o/x/herdr/herdr.sock
+fleetstub            stopped  /tmp/fmg.JS7o/x/herdr/sessions/fleetstub         /tmp/fmg.JS7o/x/herdr/sessions/fleetstub/herdr.sock
+fm-herdr-lab: fleet-state tripwire requires exactly one running fleetstub session
+fm-herdr-lab: missing fleet-state tripwire for 'fm-lab-grant-3918497'; refusing destructive calls
