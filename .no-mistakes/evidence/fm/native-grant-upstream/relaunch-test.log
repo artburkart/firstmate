@@ -5,6 +5,8 @@ ok - fm-control relaunch: a same-harness relaunch replaces the agent in the same
 ok - fm-control relaunch: pending composer text refuses before the exit command is typed
 ok - fm-control relaunch: an unreadable composer fails safe before the exit command is typed
 ok - fm-control relaunch: a linked spawning home preserves committed and unfinished work in the recorded copy
+ok - fm-control relaunch: a recorded worktree that is a standalone clone relaunches
+ok - fm-control relaunch: the project primary checkout is refused after stop, leaving no replacement
 ok - fm-control relaunch: an armed PR poll survives replacement launch publication
 ok - fm-control relaunch: a traced replacement keeps an armed PR poll authenticated
 ok - fm-control relaunch: delivery and concurrent task metadata publication serialize
@@ -28,6 +30,7 @@ ok - fm-control relaunch: only an explicit --account moves a task to another dec
 ok - fm-control relaunch: undeclared, newline-split, signed-out, unrecorded, retired, and wrong-runner accounts refuse before the old agent stops
 ok - fm-control relaunch: mate pins are re-read for Claude and Pi, and unusable pins refuse before stopping the agent
 ok - fm-control relaunch: a Pi replacement keeps the home's tool exclusions
+ok - fm-control relaunch: a Claude replacement keeps the home's tool exclusions
 ok - fm-control relaunch: exclusion-list refusals happen before the running agent stops
 ok - fm-control relaunch: explicit model and effort win over the recorded ones
 ok - fm-control relaunch: refuses to relaunch onto an adapter with no verified mechanics
@@ -92,8 +95,12 @@ ok - reclaim: a herdr reclaim rebinds the endpoint and leaves the whole rest of 
 ok - reclaim: a herdr secondmate whose endpoint is gone is sent to its own respawn owner
 ok - reclaim: a rebind refused from a plain shell reports the real cause, not a fabricated session mismatch
 not ok - a relaunch must not re-run a transition the row already reflects
-warning: /tmp/fm-control-relaunch.xGpK4m/reverify-24320/home/data/rl40/launch-brief.md records no ship branch; defaulting to legacy branch fm/rl40
-warning: /tmp/fm-control-relaunch.xGpK4m/reverify-24320/home/data/rl40/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches
-error: task rl40 cannot be dispatched because its backlog data directory is inaccessible: /tmp/fm-control-relaunch.xGpK4m/reverify-24320/home/data (automatic backlog transitions require tasks-axi 0.2.6 or newer with the required update and mv features)
+warning: /tmp/fm-control-relaunch.jNNv0c/reverify-19361/home/data/rl40/launch-brief.md records no ship branch; defaulting to legacy branch fm/rl40
+warning: /tmp/fm-control-relaunch.jNNv0c/reverify-19361/home/data/rl40/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches
+error: task rl40 cannot be dispatched because its backlog data directory is inaccessible: /tmp/fm-control-relaunch.jNNv0c/reverify-19361/home/data (automatic backlog transitions require tasks-axi 0.2.6 or newer with the required update and mv features)
 error: the replacement agent for rl40 could not be launched on claude
-error: rl40's agent was stopped but the replacement did not launch; no agent is running, and its work plus the recorded progress note are preserved at /tmp/fm-control-relaunch.xGpK4m/reverify-24320/wt: expected exit 0, got 1
+error: rl40's agent was stopped but the replacement did not launch; no agent is running, and its work plus the recorded progress note are preserved at /tmp/fm-control-relaunch.jNNv0c/reverify-19361/wt: expected exit 0, got 1
+
+real	2m22.852s
+user	1m47.259s
+sys	0m43.891s
