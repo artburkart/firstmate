@@ -1,0 +1,32 @@
+Herdr 0.9.5, protocol 22, used a named non-default lab through fm-herdr-lab.sh.
+Rex 0.1.0-preview.21, API revision 18, ran a private Unix-socket server.
+Both ran Pi 1.5.2 with a loopback model and Treehouse bd3cc28 with synthetic PR inputs.
+
+Herdr
+[herdr] release-on-review alone parks and releases
+parked review-lab-herdr-4176015: PR https://github.com/example/review-lab/pull/7 clean at f08bb2e12d25; agent stopped
+released review-lab-herdr-4176015: PR https://github.com/example/review-lab/pull/7; local copy returned
+released review-lab-herdr-4176015: PR https://github.com/example/review-lab/pull/7; local copy returned
+pr=https://github.com/example/review-lab/pull/7
+[{"name":"1","status":"available","lease_holder":""}]
+state: paused · source: review-park · released on review: PR https://github.com/example/review-lab/pull/7 at f08bb2e12d25; local copy returned
+relaunched review-lab-herdr-4176015: PR https://github.com/example/review-lab/pull/7 - new comments from reviewer
+Worker received "new comments from reviewer" in slot 2 on fm/review-lab-herdr-4176015 at f08bb2e12d25499657f3df9ae2ceb8d2e4e89ddc in replacement endpoint p2
+[{"name":"1","status":"leased","lease_holder":"another-task"},{"name":"2","status":"leased","lease_holder":"review-1809be680fb054526dc1f4f60f129ad74d1e2b3e-review-lab-herdr-4176015"}]
+Verified all planned herdr checks
+owned backend and model stopped
+Recorded endpoint changed from w1:p2 to w2:p2 in the same named Herdr session. Guarded teardown completed.
+
+Rex
+[rex] release-on-review alone parks and releases
+parked review-lab-rex-4096137: PR https://github.com/example/review-lab/pull/7 clean at f8f0c841453e; agent stopped
+released review-lab-rex-4096137: PR https://github.com/example/review-lab/pull/7; local copy returned
+released review-lab-rex-4096137: PR https://github.com/example/review-lab/pull/7; local copy returned
+pr=https://github.com/example/review-lab/pull/7
+[{"name":"1","status":"available","lease_holder":""}]
+state: paused · source: review-park · released on review: PR https://github.com/example/review-lab/pull/7 at f8f0c841453e; local copy returned
+relaunched review-lab-rex-4096137: PR https://github.com/example/review-lab/pull/7 - changes were requested
+Worker received "changes were requested" in slot 2 on fm/review-lab-rex-4096137 at f8f0c841453ea2fe5491b96b9216ad396b089cf4 in replacement endpoint 01a1ef5c-274d-7346-91f7-b88241b8d44f
+[{"name":"1","status":"leased","lease_holder":"another-task"},{"name":"2","status":"leased","lease_holder":"review-f2af53ada896bf2687eb9c19a7b4a38a2bf91e7e-review-lab-rex-4096137"}]
+Verified all planned rex checks
+owned backend and model stopped

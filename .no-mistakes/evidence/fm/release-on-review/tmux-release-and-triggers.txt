@@ -1,0 +1,38 @@
+Firstmate release-on-review on tmux 3.5a, Pi 1.5.2, and Treehouse bd3cc28.
+Inputs came from a synthetic GitHub PR and disposable Git remote. A loopback model endpoint recorded messages from the real Pi worker.
+
+[opt-in] Conventional park enabled, release flag absent
+parked review-lab-tmux-61766: PR https://github.com/example/review-lab/pull/7 clean at 4bfc0e7d98e4; agent stopped
+[{"name":"1","status":"leased","lease_holder":"review-lab-tmux-61766"}]
+[release safety] Dirty copy and failed PR checks
+fm-park: the local copy is dirty
+[{"name":"1","status":"leased","lease_holder":"review-lab-tmux-61766"}]
+fm-park: the release gate is not clean
+[{"name":"1","status":"leased","lease_holder":"review-lab-tmux-61766"}]
+[opt-in] Enabled release; task, brief, PR, branch and open backlog persist
+released review-lab-tmux-61766: PR https://github.com/example/review-lab/pull/7; local copy returned
+released review-lab-tmux-61766: PR https://github.com/example/review-lab/pull/7; local copy returned
+pr=https://github.com/example/review-lab/pull/7
+[{"name":"1","status":"available","lease_holder":""}]
+state: paused · source: review-park · released on review: PR https://github.com/example/review-lab/pull/7 at 4bfc0e7d98e4; local copy returned
+  state: in_flight
+[comment and pool capacity] Fill both slots; comment waits; free only slot 2
+all 2 worktrees are in use or dirty (max_trees = 2). Run 'treehouse status' to see details, or increase max_trees in treehouse.toml
+[{"name":"1","status":"leased","lease_holder":"another-task"},{"name":"2","status":"leased","lease_holder":"temporary-blocker"}]
+waiting review-lab-tmux-61766: review activity is waiting for a free local copy
+relaunched review-lab-tmux-61766: PR https://github.com/example/review-lab/pull/7 - new comments from reviewer
+Worker received "new comments from reviewer" in slot 2 on fm/review-lab-tmux-61766 at 4bfc0e7d98e4e9468b6bc0fa577425b2db723cc7 in replacement endpoint @2
+[{"name":"1","status":"leased","lease_holder":"another-task"},{"name":"2","status":"leased","lease_holder":"review-90ee70434c88bdfaf050f811d5e607b65008574e-review-lab-tmux-61766"}]
+[conflict] Review watcher launches a worker with a merge-conflict prompt
+parked review-lab-tmux-61766: PR https://github.com/example/review-lab/pull/7 clean at 4bfc0e7d98e4; agent stopped
+released review-lab-tmux-61766: PR https://github.com/example/review-lab/pull/7; local copy returned
+relaunched review-lab-tmux-61766: PR https://github.com/example/review-lab/pull/7 - the PR has merge conflicts
+Worker received "the PR has merge conflicts" in slot 2 on fm/review-lab-tmux-61766 at 4bfc0e7d98e4e9468b6bc0fa577425b2db723cc7 in replacement endpoint @3
+[push] Verify an independently created next commit and delivered prompt
+parked review-lab-tmux-61766: PR https://github.com/example/review-lab/pull/7 clean at 4bfc0e7d98e4; agent stopped
+released review-lab-tmux-61766: PR https://github.com/example/review-lab/pull/7; local copy returned
+relaunched review-lab-tmux-61766: PR https://github.com/example/review-lab/pull/7 - the head moved to 0b6930e350f9
+Worker received "the head moved to 0b6930e350f9" in slot 2 on fm/review-lab-tmux-61766 at 0b6930e350f9a032b936df8e277f352847516d7c in replacement endpoint @4
+
+The recorded branch tip and brief checksum were unchanged by release. The old tmux window disappeared on release.
+While slot 1 was leased to another holder, an attempted third lease failed. After slot 2 was freed, Firstmate resumed in slot 2 and preserved the other holder's file. Treehouse still listed only slots 1 and 2. Returning a slot kept its number available for reuse.

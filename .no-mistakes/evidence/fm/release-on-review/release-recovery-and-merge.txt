@@ -1,0 +1,21 @@
+Firstmate ran with a private Treehouse pool and synthetic pull request. The interruption check seeded the journal with the live tmux server and window identity, closed that window, and created a same-named replacement before retrying release.
+
+[interrupted release] Retry persisted closure with a same-named replacement window
+parked review-lab-tmux-126456: PR https://github.com/example/review-lab/pull/7 clean at 3f2648e68e21; agent stopped
+Interrupted journal settled: original @1 absent, same-named replacement @2 preserved
+pr=https://github.com/example/review-lab/pull/7
+[{"name":"1","status":"available","lease_holder":""}]
+state: paused · source: review-park · released on review: PR https://github.com/example/review-lab/pull/7 at 3f2648e68e21; local copy returned
+Verified interrupted release recovery on the private server.
+owned backend and model stopped
+
+[merge teardown safety] Open PR-only commit cannot be cleaned up; merged PR can
+REFUSED: released branch fm/review-lab-tmux-61766 has work not on any remote and not landed
+[{"name":"1","status":"leased","lease_holder":"another-task"},{"name":"2","status":"leased","lease_holder":"new-holder"}]
+Armed merge poll returned: merged
+automatic cleanup started
+cleaned up review-lab-tmux-61766: PR https://github.com/example/review-lab/pull/7 merged; released lane and its local branch removed
+[{"name":"1","status":"leased","lease_holder":"another-task"},{"name":"2","status":"leased","lease_holder":"new-holder"}]
+  state: done
+  links: "pr:https://github.com/example/review-lab/pull/7"
+Both foreign leases and their files preserved. Task and branch removed.
