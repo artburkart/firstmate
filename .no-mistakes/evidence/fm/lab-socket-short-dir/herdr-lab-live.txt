@@ -1,0 +1,77 @@
+herdr 0.9.5
+
+SHORT CONFIG: run a real companion through the ordinary path
+$ XDG_CONFIG_HOME=/proc/self/cwd FM_HERDR_LAB_FLEET_SESSION=bootstrap-fleet fm-herdr-lab.sh provision fm-lab-observer
+exit=0
+$ XDG_CONFIG_HOME=/proc/self/cwd FM_HERDR_LAB_FLEET_SESSION=bootstrap-fleet fm-herdr-lab.sh run fm-lab-observer session list --json
+{"sessions":[{"default":true,"name":"default","running":false,"session_dir":"/proc/self/cwd/herdr","socket_path":"/proc/self/cwd/herdr/herdr.sock"},{"default":false,"name":"bootstrap-fleet","running":true,"session_dir":"/proc/self/cwd/herdr/sessions/bootstrap-fleet","socket_path":"/proc/self/cwd/herdr/sessions/bootstrap-fleet/herdr.sock"},{"default":false,"name":"fm-lab-observer","running":true,"session_dir":"/proc/self/cwd/herdr/sessions/fm-lab-observer","socket_path":"/proc/self/cwd/herdr/sessions/fm-lab-observer/herdr.sock"}]}
+exit=0
+PASS short configuration: real server running, original socket, no relocation record
+
+LONG CONFIG: compare the old helper and drive a full relocated lifecycle
+Unrelocated client socket would require 137 bytes
+$ XDG_CONFIG_HOME={run-worktree}/.lab-live-83fo2kxb FM_HERDR_LAB_FLEET_SESSION=fixture-fleet base-fm-herdr-lab.sh provision fm-lab-live
+fm-herdr-lab: session 'fm-lab-live' would bind a 137-byte socket path, over the 103-byte sun_path limit: {run-worktree}/.lab-live-83fo2kxb/herdr/sessions/fm-lab-live/herdr-client.sock
+exit=1
+$ XDG_CONFIG_HOME={run-worktree}/.lab-live-83fo2kxb FM_HERDR_LAB_FLEET_SESSION=fixture-fleet fm-herdr-lab.sh name long-root
+fm-lab-long-root-424936-712
+exit=0
+$ XDG_CONFIG_HOME={run-worktree}/.lab-live-83fo2kxb FM_HERDR_LAB_FLEET_SESSION=fixture-fleet fm-herdr-lab.sh provision fm-lab-live
+exit=0
+Private config alias /tmp/fmh.aQv265, mode 0700, owner UID 1000
+$ XDG_CONFIG_HOME={run-worktree}/.lab-live-83fo2kxb FM_HERDR_LAB_FLEET_SESSION=fixture-fleet fm-herdr-lab.sh run fm-lab-live session list --json
+{"sessions":[{"default":true,"name":"default","running":false,"session_dir":"/tmp/fmh.aQv265/herdr","socket_path":"/tmp/fmh.aQv265/herdr/herdr.sock"},{"default":false,"name":"bootstrap-fleet","running":true,"session_dir":"/tmp/fmh.aQv265/herdr/sessions/bootstrap-fleet","socket_path":"/tmp/fmh.aQv265/herdr/sessions/bootstrap-fleet/herdr.sock"},{"default":false,"name":"fixture-fleet","running":true,"session_dir":"/tmp/fmh.aQv265/herdr/sessions/fixture-fleet","socket_path":"/tmp/fmh.aQv265/herdr/sessions/fixture-fleet/herdr.sock"},{"default":false,"name":"fm-lab-live","running":true,"session_dir":"/tmp/fmh.aQv265/herdr/sessions/fm-lab-live","socket_path":"/tmp/fmh.aQv265/herdr/sessions/fm-lab-live/herdr.sock"},{"default":false,"name":"fm-lab-observer","running":true,"session_dir":"/tmp/fmh.aQv265/herdr/sessions/fm-lab-observer","socket_path":"/tmp/fmh.aQv265/herdr/sessions/fm-lab-observer/herdr.sock"}]}
+exit=0
+Kernel-bound client socket /tmp/fmh.aQv265/herdr/sessions/fm-lab-live/herdr-client.sock (60 bytes)
+$ XDG_CONFIG_HOME={run-worktree}/.lab-live-83fo2kxb FM_HERDR_LAB_FLEET_SESSION=fixture-fleet fm-herdr-lab.sh run fm-lab-live status --json
+{"client":{"version":"0.9.5","channel":"stable","protocol":22,"endpoint_protocol_generation":1,"endpoint_capabilities":["surface_interest","presentation_effects_fence","health_check"],"remote_host_bridge":true,"remote_bridge_idle_timeout":true,"binary":"/usr/local/share/mise/installs/aqua-herdrdev-herdr/0.9.5/herdr","session":"fm-lab-live"},"server":{"status":"running","running":true,"version":"0.9.5","protocol":22,"capabilities":{"live_handoff":true,"detached_server_daemon":false,"endpoint_protocol_generation":1,"surface_interest":true,"health_check":true,"ssh_agent_registration":true},"compatible":true,"endpoint_compatible":true,"socket":"/tmp/fmh.aQv265/herdr/sessions/fm-lab-live/herdr.sock","session":"fm-lab-live","restart_needed":false,"server_binary_stale":false},"update":{"restart_needed":false,"server_binary_stale":false}}
+exit=0
+$ XDG_CONFIG_HOME={run-worktree}/.lab-live-83fo2kxb FM_HERDR_LAB_FLEET_SESSION=fixture-fleet fm-herdr-lab.sh run fm-lab-live terminal title clear
+{"id":"cli:terminal:title:clear","result":{"changed":false,"reason":"no_foreground_client","type":"client_window_title"}}
+exit=0
+$ XDG_CONFIG_HOME={run-worktree}/.lab-live-83fo2kxb FM_HERDR_LAB_FLEET_SESSION=fixture-fleet fm-herdr-lab.sh viewer start fm-lab-live
+viewer attached to fm-lab-live (pid 425303)
+exit=0
+$ XDG_CONFIG_HOME={run-worktree}/.lab-live-83fo2kxb FM_HERDR_LAB_FLEET_SESSION=fixture-fleet fm-herdr-lab.sh run fm-lab-live terminal title clear
+{"id":"cli:terminal:title:clear","result":{"changed":true,"reason":"cleared","type":"client_window_title"}}
+exit=0
+Tripwire before teardown: {"name": "fixture-fleet", "default": false, "running": true, "socket_path": "/tmp/fmh.aQv265/herdr/sessions/fixture-fleet/herdr.sock"}
+$ XDG_CONFIG_HOME={run-worktree}/.lab-live-83fo2kxb FM_HERDR_LAB_FLEET_SESSION=fixture-fleet fm-herdr-lab.sh teardown fm-lab-live
+exit=0
+$ XDG_CONFIG_HOME=/proc/self/cwd FM_HERDR_LAB_FLEET_SESSION=bootstrap-fleet fm-herdr-lab.sh run fm-lab-observer session list --json
+{"sessions":[{"default":true,"name":"default","running":false,"session_dir":"/proc/self/cwd/herdr","socket_path":"/proc/self/cwd/herdr/herdr.sock"},{"default":false,"name":"bootstrap-fleet","running":true,"session_dir":"/proc/self/cwd/herdr/sessions/bootstrap-fleet","socket_path":"/proc/self/cwd/herdr/sessions/bootstrap-fleet/herdr.sock"},{"default":false,"name":"fixture-fleet","running":true,"session_dir":"/proc/self/cwd/herdr/sessions/fixture-fleet","socket_path":"/proc/self/cwd/herdr/sessions/fixture-fleet/herdr.sock"},{"default":false,"name":"fm-lab-observer","running":true,"session_dir":"/proc/self/cwd/herdr/sessions/fm-lab-observer","socket_path":"/proc/self/cwd/herdr/sessions/fm-lab-observer/herdr.sock"}]}
+exit=0
+PASS relocated lifecycle: connected viewer, removed lab and alias, real companion unchanged
+
+TRIPWIRE: stop the disposable companion, guard teardown, then recover
+$ XDG_CONFIG_HOME={run-worktree}/.lab-live-83fo2kxb FM_HERDR_LAB_FLEET_SESSION=fixture-fleet fm-herdr-lab.sh provision fm-lab-guard
+exit=0
+$ XDG_CONFIG_HOME=/proc/self/cwd FM_HERDR_LAB_FLEET_SESSION=bootstrap-fleet fm-herdr-lab.sh stop fm-lab-observer
+{"session":{"default":false,"name":"fm-lab-observer","running":false,"session_dir":"/proc/self/cwd/herdr/sessions/fm-lab-observer","socket_path":"/proc/self/cwd/herdr/sessions/fm-lab-observer/herdr.sock"},"stopped":true}
+exit=0
+$ XDG_CONFIG_HOME={run-worktree}/.lab-live-83fo2kxb FM_HERDR_LAB_FLEET_SESSION=fixture-fleet fm-herdr-lab.sh run fm-lab-guard session list --json
+{"sessions":[{"default":true,"name":"default","running":false,"session_dir":"/tmp/fmh.7lK2Rs/herdr","socket_path":"/tmp/fmh.7lK2Rs/herdr/herdr.sock"},{"default":false,"name":"bootstrap-fleet","running":true,"session_dir":"/tmp/fmh.7lK2Rs/herdr/sessions/bootstrap-fleet","socket_path":"/tmp/fmh.7lK2Rs/herdr/sessions/bootstrap-fleet/herdr.sock"},{"default":false,"name":"fixture-fleet","running":false,"session_dir":"/tmp/fmh.7lK2Rs/herdr/sessions/fixture-fleet","socket_path":"/tmp/fmh.7lK2Rs/herdr/sessions/fixture-fleet/herdr.sock"},{"default":false,"name":"fm-lab-guard","running":true,"session_dir":"/tmp/fmh.7lK2Rs/herdr/sessions/fm-lab-guard","socket_path":"/tmp/fmh.7lK2Rs/herdr/sessions/fm-lab-guard/herdr.sock"},{"default":false,"name":"fm-lab-observer","running":false,"session_dir":"/tmp/fmh.7lK2Rs/herdr/sessions/fm-lab-observer","socket_path":"/tmp/fmh.7lK2Rs/herdr/sessions/fm-lab-observer/herdr.sock"}]}
+exit=0
+$ XDG_CONFIG_HOME={run-worktree}/.lab-live-83fo2kxb FM_HERDR_LAB_FLEET_SESSION=fixture-fleet fm-herdr-lab.sh teardown fm-lab-guard
+fm-herdr-lab: fleet-state tripwire requires exactly one running fixture-fleet session
+exit=1
+$ XDG_CONFIG_HOME=/proc/self/cwd FM_HERDR_LAB_FLEET_SESSION=bootstrap-fleet fm-herdr-lab.sh provision fm-lab-observer
+exit=0
+$ XDG_CONFIG_HOME={run-worktree}/.lab-live-83fo2kxb FM_HERDR_LAB_FLEET_SESSION=fixture-fleet fm-herdr-lab.sh run fm-lab-guard session list --json
+{"sessions":[{"default":true,"name":"default","running":false,"session_dir":"/tmp/fmh.7lK2Rs/herdr","socket_path":"/tmp/fmh.7lK2Rs/herdr/herdr.sock"},{"default":false,"name":"bootstrap-fleet","running":true,"session_dir":"/tmp/fmh.7lK2Rs/herdr/sessions/bootstrap-fleet","socket_path":"/tmp/fmh.7lK2Rs/herdr/sessions/bootstrap-fleet/herdr.sock"},{"default":false,"name":"fixture-fleet","running":true,"session_dir":"/tmp/fmh.7lK2Rs/herdr/sessions/fixture-fleet","socket_path":"/tmp/fmh.7lK2Rs/herdr/sessions/fixture-fleet/herdr.sock"},{"default":false,"name":"fm-lab-observer","running":true,"session_dir":"/tmp/fmh.7lK2Rs/herdr/sessions/fm-lab-observer","socket_path":"/tmp/fmh.7lK2Rs/herdr/sessions/fm-lab-observer/herdr.sock"}]}
+exit=0
+$ XDG_CONFIG_HOME={run-worktree}/.lab-live-83fo2kxb FM_HERDR_LAB_FLEET_SESSION=fixture-fleet fm-herdr-lab.sh teardown fm-lab-guard
+exit=0
+PASS tripwire: refused cleanup while the companion was stopped, retained records, then cleaned up on retry
+
+UNRELOCATABLE NAME: reject before creating a session or state records
+$ XDG_CONFIG_HOME={run-worktree}/.lab-live-83fo2kxb FM_HERDR_LAB_FLEET_SESSION=fixture-fleet fm-herdr-lab.sh provision fm-lab-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+fm-herdr-lab: session 'fm-lab-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' would bind a 156-byte socket path, over the 103-byte sun_path limit: /tmp/fmh.XXXXXX/herdr/sessions/fm-lab-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/herdr-client.sock
+exit=1
+$ XDG_CONFIG_HOME=/proc/self/cwd FM_HERDR_LAB_FLEET_SESSION=bootstrap-fleet fm-herdr-lab.sh run fm-lab-observer session list --json
+{"sessions":[{"default":true,"name":"default","running":false,"session_dir":"/proc/self/cwd/herdr","socket_path":"/proc/self/cwd/herdr/herdr.sock"},{"default":false,"name":"bootstrap-fleet","running":true,"session_dir":"/proc/self/cwd/herdr/sessions/bootstrap-fleet","socket_path":"/proc/self/cwd/herdr/sessions/bootstrap-fleet/herdr.sock"},{"default":false,"name":"fixture-fleet","running":true,"session_dir":"/proc/self/cwd/herdr/sessions/fixture-fleet","socket_path":"/proc/self/cwd/herdr/sessions/fixture-fleet/herdr.sock"},{"default":false,"name":"fm-lab-observer","running":true,"session_dir":"/proc/self/cwd/herdr/sessions/fm-lab-observer","socket_path":"/proc/self/cwd/herdr/sessions/fm-lab-observer/herdr.sock"}]}
+exit=0
+PASS unrelocatable name: no session or ownership record
+$ XDG_CONFIG_HOME=/proc/self/cwd FM_HERDR_LAB_FLEET_SESSION=bootstrap-fleet fm-herdr-lab.sh teardown fm-lab-observer
+exit=0
+Disposable Herdr sessions and relocation records removed
